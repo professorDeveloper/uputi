@@ -110,23 +110,15 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
       final freshPage = futures[2] as PassengerTripsPage;
       final freshMyTrips = futures[3] as DriverMyTripsResponse?;
 
-      final mergedTrips = _merge<PassengerTripModel>(
-        old: s.trips, fresh: freshPage.items, id: (x) => x.id,
-      );
-      final mergedBookings = _merge<DriverBookingModel>(
-        old: s.inProgress, fresh: freshBookings, id: (x) => x.id!,
-      );
-      final mergedMyTrips = (s.myTripsLoadedOnce && freshMyTrips != null)
-          ? _merge<DriverMyTripItem>(
-        old: s.myTrips, fresh: freshMyTrips.items, id: (x) => x.id!,
-      )
+      final freshMyTripsItems = (s.myTripsLoadedOnce && freshMyTrips != null)
+          ? freshMyTrips.items
           : s.myTrips;
 
       emit(s.copyWith(
         user: freshUser,
-        trips: mergedTrips,
-        inProgress: mergedBookings,
-        myTrips: mergedMyTrips,
+        trips: freshPage.items,
+        inProgress: freshBookings,
+        myTrips: freshMyTripsItems,
         tripsNextPage: freshPage.nextPage,
         tripsHasMore: freshPage.hasMore,
         isTripsLoadingMore: false,
@@ -415,12 +407,14 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
     required int Function(T) id,
   }) {
     final freshMap = <int, T>{for (final x in fresh) id(x): x};
-    final used = <int>{};
     final result = <T>[];
+    final used = <int>{};
     for (final o in old) {
       final k = id(o);
-      result.add(freshMap[k] ?? o);
-      used.add(k);
+      if (freshMap.containsKey(k)) {
+        result.add(freshMap[k]!);
+        used.add(k);
+      }
     }
     for (final f in fresh) {
       if (!used.contains(id(f))) result.add(f);

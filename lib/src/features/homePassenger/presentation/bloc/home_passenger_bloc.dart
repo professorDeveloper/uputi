@@ -17,6 +17,7 @@ import '../../domain/usecases/offer_price_use_case.dart';
 import '../../domain/usecases/create_booking_use_case.dart';
 
 part 'home_passenger_event.dart';
+
 part 'home_passenger_state.dart';
 
 class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
@@ -50,7 +51,6 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
 
     on<MyTripsTabOpened>(_onMyTripsTabOpened);
     on<RefreshMyTripsPressed>(_onRefreshMyTrips);
-
   }
 
   bool _silentRefreshing = false;
@@ -60,7 +60,10 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
     return msg.contains('unauthenticated') || msg.contains('401');
   }
 
-  Future<void> _onInit(HomePassengerInit event, Emitter<HomePassengerState> emit) async {
+  Future<void> _onInit(
+    HomePassengerInit event,
+    Emitter<HomePassengerState> emit,
+  ) async {
     emit(HomePassengerLoading());
 
     try {
@@ -87,8 +90,11 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
         ),
       );
     } catch (e, s) {
-
-      emit(_isUnauth(e) ? HomePassengerUnauthorized() : HomePassengerError(e.toString()));
+      emit(
+        _isUnauth(e)
+            ? HomePassengerUnauthorized()
+            : HomePassengerError(e.toString()),
+      );
     }
   }
 
@@ -112,14 +118,10 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
       final freshUser = futures[0] as UserModel;
       final freshBookings = futures[1] as List<BookingModel>;
       final freshTripsPage = futures[2] as TripsPage;
-      final freshTrips = freshTripsPage.items;
       final freshMyTripsRes = futures[3] as MyTripsResponse?;
 
-      final mergedTrips = _mergeKeepOrderAndAppendNew<DriverTripModel>(
-        oldList: s.trips,
-        freshList: freshTrips,
-        idOf: (x) => x.id,
-      );
+      // MUHIM: trips ni to'liq yangilaymiz, merge qilmasdan
+      final freshTrips = freshTripsPage.items;
 
       final freshMyTrips = (s.myTripsLoadedOnce && freshMyTripsRes != null)
           ? freshMyTripsRes.items
@@ -127,7 +129,7 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
 
       emit(s.copyWith(
         user: freshUser,
-        trips: mergedTrips,
+        trips: freshTrips, // To'g'ridan-to'g'ri fresh ma'lumotlarni ishlatamiz
         inProgress: freshBookings,
         myTrips: freshMyTrips,
 
@@ -146,7 +148,6 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
         myTripsError: s.myTripsError,
       ));
     } catch (e) {
-
       if (_isUnauth(e)) emit(HomePassengerUnauthorized());
     } finally {
       _silentRefreshing = false;
@@ -154,9 +155,9 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
   }
 
   Future<void> _onLoadMoreTrips(
-      LoadMoreActiveTrips event,
-      Emitter<HomePassengerState> emit,
-      ) async {
+    LoadMoreActiveTrips event,
+    Emitter<HomePassengerState> emit,
+  ) async {
     final current = state;
     if (current is! HomePassengerLoaded) return;
 
@@ -168,14 +169,18 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
       final pageRes = await getTrips(page: current.tripsNextPage, perPage: 10);
 
       final existingIds = current.trips.map((e) => e.id).toSet();
-      final newItems = pageRes.items.where((e) => !existingIds.contains(e.id)).toList();
+      final newItems = pageRes.items
+          .where((e) => !existingIds.contains(e.id))
+          .toList();
 
-      emit(current.copyWith(
-        trips: [...current.trips, ...newItems],
-        tripsNextPage: pageRes.nextPage,
-        tripsHasMore: pageRes.hasMore,
-        isTripsLoadingMore: false,
-      ));
+      emit(
+        current.copyWith(
+          trips: [...current.trips, ...newItems],
+          tripsNextPage: pageRes.nextPage,
+          tripsHasMore: pageRes.hasMore,
+          isTripsLoadingMore: false,
+        ),
+      );
     } catch (e) {
       if (_isUnauth(e)) {
         emit(HomePassengerUnauthorized());
@@ -189,39 +194,48 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
     required List<T> oldList,
     required List<T> freshList,
     required int Function(T) idOf,
+    bool Function(T old, T fresh)? shouldUpdate, // ixtiyoriy
   }) {
     final freshMap = <int, T>{for (final x in freshList) idOf(x): x};
-
     final used = <int>{};
     final result = <T>[];
 
     for (final old in oldList) {
       final id = idOf(old);
       final fresh = freshMap[id];
-      result.add(fresh ?? old);
+      if (fresh != null) {
+        // Fresh ma' to'liq ishlatamiz
+        result.add(fresh);
+      } else {
+        result.add(old);
+      }
       used.add(id);
     }
 
     for (final fresh in freshList) {
       final id = idOf(fresh);
-      if (!used.contains(id)) result.add(fresh);
+      if (!used.contains(id)) {
+        result.add(fresh);
+      }
     }
 
     return result;
   }
 
   Future<void> _onCancelMyTrip(
-      CancelMyTripPressed event,
-      Emitter<HomePassengerState> emit,
-      ) async {
+    CancelMyTripPressed event,
+    Emitter<HomePassengerState> emit,
+  ) async {
     final current = state;
     if (current is! HomePassengerLoaded) return;
 
-    emit(current.copyWith(
-      isTripCancelLoading: true,
-      tripCancelMessage: null,
-      tripCancelError: null,
-    ));
+    emit(
+      current.copyWith(
+        isTripCancelLoading: true,
+        tripCancelMessage: null,
+        tripCancelError: null,
+      ),
+    );
 
     try {
       final msg = await cancelMyTrip(tripId: event.tripId);
@@ -243,32 +257,38 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
 
       final tripsPage = refreshed[2] as TripsPage;
 
-      emit(current.copyWith(
-        user: refreshed[0] as UserModel,
-        inProgress: refreshed[1] as List<BookingModel>,
-        trips: tripsPage.items,
-        tripsNextPage: tripsPage.nextPage,
-        tripsHasMore: tripsPage.hasMore,
-        isTripsLoadingMore: false,
+      emit(
+        current.copyWith(
+          user: refreshed[0] as UserModel,
+          inProgress: refreshed[1] as List<BookingModel>,
+          trips: tripsPage.items,
+          tripsNextPage: tripsPage.nextPage,
+          tripsHasMore: tripsPage.hasMore,
+          isTripsLoadingMore: false,
 
-        myTrips: myTrips,
-        isTripCancelLoading: false,
-        tripCancelMessage: msg,
-      ));
+          myTrips: myTrips,
+          isTripCancelLoading: false,
+          tripCancelMessage: msg,
+        ),
+      );
     } catch (e, s) {
-
       if (_isUnauth(e)) {
         emit(HomePassengerUnauthorized());
       } else {
-        emit(current.copyWith(
-          isTripCancelLoading: false,
-          tripCancelError: e.toString(),
-        ));
+        emit(
+          current.copyWith(
+            isTripCancelLoading: false,
+            tripCancelError: e.toString(),
+          ),
+        );
       }
     }
   }
 
-  Future<void> _onMyTripsTabOpened(MyTripsTabOpened event, Emitter<HomePassengerState> emit) async {
+  Future<void> _onMyTripsTabOpened(
+    MyTripsTabOpened event,
+    Emitter<HomePassengerState> emit,
+  ) async {
     final current = state;
     if (current is! HomePassengerLoaded) return;
 
@@ -278,24 +298,28 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
 
     try {
       final res = await getMyTrips();
-      emit(current.copyWith(
-        myTrips: res.items,
-        isMyTripsLoading: false,
-        myTripsLoadedOnce: true,
-      ));
+      emit(
+        current.copyWith(
+          myTrips: res.items,
+          isMyTripsLoading: false,
+          myTripsLoadedOnce: true,
+        ),
+      );
     } catch (e) {
       if (_isUnauth(e)) {
         emit(HomePassengerUnauthorized());
       } else {
-        emit(current.copyWith(
-          isMyTripsLoading: false,
-          myTripsError: e.toString(),
-        ));
+        emit(
+          current.copyWith(isMyTripsLoading: false, myTripsError: e.toString()),
+        );
       }
     }
   }
 
-  Future<void> _onRefreshMyTrips(RefreshMyTripsPressed event, Emitter<HomePassengerState> emit) async {
+  Future<void> _onRefreshMyTrips(
+    RefreshMyTripsPressed event,
+    Emitter<HomePassengerState> emit,
+  ) async {
     final current = state;
     if (current is! HomePassengerLoaded) return;
     if (current.isMyTripsLoading) return;
@@ -304,33 +328,38 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
 
     try {
       final res = await getMyTrips();
-      emit(current.copyWith(
-        myTrips: res.items,
-        isMyTripsLoading: false,
-        myTripsLoadedOnce: true,
-      ));
+      emit(
+        current.copyWith(
+          myTrips: res.items,
+          isMyTripsLoading: false,
+          myTripsLoadedOnce: true,
+        ),
+      );
     } catch (e, s) {
-
       if (_isUnauth(e)) {
         emit(HomePassengerUnauthorized());
       } else {
-        emit(current.copyWith(
-          isMyTripsLoading: false,
-          myTripsError: e.toString(),
-        ));
+        emit(
+          current.copyWith(isMyTripsLoading: false, myTripsError: e.toString()),
+        );
       }
     }
   }
 
-  Future<void> _onOffer(OfferPriceRequested event, Emitter<HomePassengerState> emit) async {
+  Future<void> _onOffer(
+    OfferPriceRequested event,
+    Emitter<HomePassengerState> emit,
+  ) async {
     final current = state;
     if (current is! HomePassengerLoaded) return;
 
-    emit(current.copyWith(
-      isOfferLoading: true,
-      offerMessage: null,
-      offerError: null,
-    ));
+    emit(
+      current.copyWith(
+        isOfferLoading: true,
+        offerMessage: null,
+        offerError: null,
+      ),
+    );
 
     try {
       final msg = await offerPrice(
@@ -355,40 +384,43 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
         } catch (_) {}
       }
 
-      emit(current.copyWith(
-        user: refreshed[0] as UserModel,
-        inProgress: refreshed[1] as List<BookingModel>,
-        trips: tripsPage.items,
-        tripsNextPage: tripsPage.nextPage,
-        tripsHasMore: tripsPage.hasMore,
-        isTripsLoadingMore: false,
+      emit(
+        current.copyWith(
+          user: refreshed[0] as UserModel,
+          inProgress: refreshed[1] as List<BookingModel>,
+          trips: tripsPage.items,
+          tripsNextPage: tripsPage.nextPage,
+          tripsHasMore: tripsPage.hasMore,
+          isTripsLoadingMore: false,
 
-        myTrips: myTrips,
-        isOfferLoading: false,
-        offerMessage: msg,
-      ));
+          myTrips: myTrips,
+          isOfferLoading: false,
+          offerMessage: msg,
+        ),
+      );
     } catch (e, s) {
-
       if (_isUnauth(e)) {
         emit(HomePassengerUnauthorized());
       } else {
-        emit(current.copyWith(
-          isOfferLoading: false,
-          offerError: e.toString(),
-        ));
+        emit(current.copyWith(isOfferLoading: false, offerError: e.toString()));
       }
     }
   }
 
-  Future<void> _onCreateBooking(CreateBookingRequested event, Emitter<HomePassengerState> emit) async {
+  Future<void> _onCreateBooking(
+    CreateBookingRequested event,
+    Emitter<HomePassengerState> emit,
+  ) async {
     final current = state;
     if (current is! HomePassengerLoaded) return;
 
-    emit(current.copyWith(
-      isCreateLoading: true,
-      createMessage: null,
-      createError: null,
-    ));
+    emit(
+      current.copyWith(
+        isCreateLoading: true,
+        createMessage: null,
+        createError: null,
+      ),
+    );
 
     try {
       final msg = await createBooking(tripId: event.tripId, seats: event.seats);
@@ -408,40 +440,45 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
         } catch (_) {}
       }
 
-      emit(current.copyWith(
-        user: refreshed[0] as UserModel,
-        inProgress: refreshed[1] as List<BookingModel>,
-        trips: tripsPage.items,
-        tripsNextPage: tripsPage.nextPage,
-        tripsHasMore: tripsPage.hasMore,
-        isTripsLoadingMore: false,
+      emit(
+        current.copyWith(
+          user: refreshed[0] as UserModel,
+          inProgress: refreshed[1] as List<BookingModel>,
+          trips: tripsPage.items,
+          tripsNextPage: tripsPage.nextPage,
+          tripsHasMore: tripsPage.hasMore,
+          isTripsLoadingMore: false,
 
-        myTrips: myTrips,
-        isCreateLoading: false,
-        createMessage: msg,
-      ));
+          myTrips: myTrips,
+          isCreateLoading: false,
+          createMessage: msg,
+        ),
+      );
     } catch (e) {
-
       if (_isUnauth(e)) {
         emit(HomePassengerUnauthorized());
       } else {
-        emit(current.copyWith(
-          isCreateLoading: false,
-          createError: e.toString(),
-        ));
+        emit(
+          current.copyWith(isCreateLoading: false, createError: e.toString()),
+        );
       }
     }
   }
 
-  Future<void> _onCancel(CancelBookingPressed event, Emitter<HomePassengerState> emit) async {
+  Future<void> _onCancel(
+    CancelBookingPressed event,
+    Emitter<HomePassengerState> emit,
+  ) async {
     final current = state;
     if (current is! HomePassengerLoaded) return;
 
-    emit(current.copyWith(
-      isCancelLoading: true,
-      cancelMessage: null,
-      cancelError: null,
-    ));
+    emit(
+      current.copyWith(
+        isCancelLoading: true,
+        cancelMessage: null,
+        cancelError: null,
+      ),
+    );
 
     try {
       final msg = await cancelBooking(bookingId: event.bookingId);
@@ -461,27 +498,27 @@ class HomePassengerBloc extends Bloc<HomePassengerEvent, HomePassengerState> {
         } catch (_) {}
       }
 
-      emit(current.copyWith(
-        user: refreshed[0] as UserModel,
-        inProgress: refreshed[1] as List<BookingModel>,
-        trips: tripsPage.items,
-        tripsNextPage: tripsPage.nextPage,
-        tripsHasMore: tripsPage.hasMore,
-        isTripsLoadingMore: false,
+      emit(
+        current.copyWith(
+          user: refreshed[0] as UserModel,
+          inProgress: refreshed[1] as List<BookingModel>,
+          trips: tripsPage.items,
+          tripsNextPage: tripsPage.nextPage,
+          tripsHasMore: tripsPage.hasMore,
+          isTripsLoadingMore: false,
 
-        myTrips: myTrips,
-        isCancelLoading: false,
-        cancelMessage: msg,
-      ));
+          myTrips: myTrips,
+          isCancelLoading: false,
+          cancelMessage: msg,
+        ),
+      );
     } catch (e, s) {
-
       if (_isUnauth(e)) {
         emit(HomePassengerUnauthorized());
       } else {
-        emit(current.copyWith(
-          isCancelLoading: false,
-          cancelError: e.toString(),
-        ));
+        emit(
+          current.copyWith(isCancelLoading: false, cancelError: e.toString()),
+        );
       }
     }
   }

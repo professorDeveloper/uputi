@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart' as geo;
@@ -187,8 +186,9 @@ class _CitySearchTabState extends State<CitySearchTab> {
               if (err.isNotEmpty) showErrorFlushBar(err).show(context);
             },
             builder: (_, state) {
-              final actionLoading =
-              state is SearchTripsLoaded ? state.actionLoading : false;
+              final actionLoading = state is SearchTripsLoaded
+                  ? state.actionLoading
+                  : false;
 
               return _CityTripBottomSheet(
                 trip: t,
@@ -198,8 +198,7 @@ class _CitySearchTabState extends State<CitySearchTab> {
 
                   final tripId = int.tryParse('${t.id}');
                   if (tripId == null) {
-                    showErrorFlushBar('trip_invalid_id'.tr())
-                        .show(parentContext);
+                    showErrorFlushBar("Trip id noto‘g‘ri").show(parentContext);
                     return;
                   }
 
@@ -225,7 +224,9 @@ class _CitySearchTabState extends State<CitySearchTab> {
                   if (actionLoading) return;
 
                   final tripId = int.tryParse('${t.id}');
-                  if (tripId == null) return;
+                  if (tripId == null) {
+                    return;
+                  }
 
                   Navigator.of(sheetContext).pop();
                   await Future.delayed(const Duration(milliseconds: 220));
@@ -260,8 +261,7 @@ class _CitySearchTabState extends State<CitySearchTab> {
     return MultiBlocListener(
       listeners: [
         BlocListener<CitySearchBloc, CitySearchState>(
-          listenWhen: (p, c) =>
-          c is CitySearchLoaded || c is CitySearchError,
+          listenWhen: (p, c) => c is CitySearchLoaded || c is CitySearchError,
           listener: (context, state) async {
             if (state is CitySearchLoaded) {
               await _syncMarkers(state.response.items);
@@ -289,15 +289,17 @@ class _CitySearchTabState extends State<CitySearchTab> {
       ],
       child: BlocBuilder<CitySearchBloc, CitySearchState>(
         builder: (context, state) {
-          final loading = state is CitySearchLoading ||
-              (!_booted && state is CitySearchInitial);
-          final tripsCount =
-          state is CitySearchLoaded ? state.response.items.length : null;
+          final loading =
+              state is CitySearchLoading ||
+                  (!_booted && state is CitySearchInitial);
+          final tripsCount = state is CitySearchLoaded
+              ? state.response.items.length
+              : null;
 
           return Stack(
             children: [
               mapbox.MapWidget(
-                key: const ValueKey('city_map'),
+                key: const ValueKey("city_map"),
                 styleUri: mapbox.MapboxStyles.MAPBOX_STREETS,
                 onMapCreated: _onMapCreated,
                 cameraOptions: mapbox.CameraOptions(
@@ -314,11 +316,10 @@ class _CitySearchTabState extends State<CitySearchTab> {
                 right: 12,
                 top: 12,
                 child: _TopCard(
-                  title: 'city_search_title'.tr(),
+                  title: "Shahar ichida",
                   subtitle: tripsCount == null
-                      ? 'city_search_subtitle'.tr()
-                      : 'city_search_found'
-                      .tr(namedArgs: {'count': '$tripsCount'}),
+                      ? "Joylashuv bo‘yicha qidiruv"
+                      : "Topildi: $tripsCount",
                   onRefresh: loading ? null : _load,
                 ),
               ),
@@ -366,29 +367,21 @@ class _CitySearchTabState extends State<CitySearchTab> {
     final w = size;
     final h = size;
 
-    canvas.drawCircle(
-      Offset(w / 2, h / 2 + w * 0.07),
-      w * 0.30,
-      Paint()
-        ..isAntiAlias = true
-        ..color = const Color(0x22000000),
-    );
+    final shadowPaint = Paint()
+      ..isAntiAlias = true
+      ..color = const Color(0x22000000);
 
-    canvas.drawCircle(
-      Offset(w / 2, h / 2),
-      w * 0.30,
-      Paint()
-        ..isAntiAlias = true
-        ..color = Colors.white,
-    );
+    canvas.drawCircle(Offset(w / 2, h / 2 + w * 0.07), w * 0.30, shadowPaint);
 
-    canvas.drawCircle(
-      Offset(w / 2, h / 2),
-      w * 0.22,
-      Paint()
-        ..isAntiAlias = true
-        ..color = bg,
-    );
+    final outerPaint = Paint()
+      ..isAntiAlias = true
+      ..color = Colors.white;
+    canvas.drawCircle(Offset(w / 2, h / 2), w * 0.30, outerPaint);
+
+    final innerPaint = Paint()
+      ..isAntiAlias = true
+      ..color = bg;
+    canvas.drawCircle(Offset(w / 2, h / 2), w * 0.22, innerPaint);
 
     final tp = TextPainter(
       text: TextSpan(
@@ -400,9 +393,14 @@ class _CitySearchTabState extends State<CitySearchTab> {
           color: Colors.white,
         ),
       ),
+      textDirection: TextDirection.ltr,
     )..layout();
 
     tp.paint(canvas, Offset(w / 2 - tp.width / 2, h / 2 - tp.height / 2));
+
+    final pointerPaint = Paint()
+      ..isAntiAlias = true
+      ..color = Colors.white;
 
     final path = Path()
       ..moveTo(w / 2, h * 0.92)
@@ -410,11 +408,7 @@ class _CitySearchTabState extends State<CitySearchTab> {
       ..lineTo(w * 0.56, h * 0.70)
       ..close();
 
-    canvas.drawPath(
-        path,
-        Paint()
-          ..isAntiAlias = true
-          ..color = Colors.white);
+    canvas.drawPath(path, pointerPaint);
 
     final picture = recorder.endRecording();
     final image = await picture.toImage(w.toInt(), h.toInt());
@@ -469,11 +463,15 @@ class _TopCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 2),
-                  Text(subtitle,
-                      style: const TextStyle(color: Color(0xFF6B7280))),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(color: Color(0xFF6B7280)),
+                  ),
                 ],
               ),
             ),
@@ -483,6 +481,43 @@ class _TopCard extends StatelessWidget {
               splashRadius: 18,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PrettyFabLikeImage extends StatelessWidget {
+  final VoidCallback? onTap;
+
+  const _PrettyFabLikeImage({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      elevation: 12,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: SizedBox(
+          width: 58,
+          height: 58,
+          child: Center(
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF1FF),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Icon(
+                Icons.my_location_rounded,
+                color: Color(0xFF2563EB),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -514,7 +549,7 @@ class _CityTripBottomSheet extends StatelessWidget {
     final amount = trip.amount;
     final price = _money(amount is int ? amount : int.tryParse('$amount') ?? 0);
 
-    final name = (trip.user?.name ?? 'sheet_driver_default'.tr()).trim();
+    final name = (trip.user?.name ?? 'Haydovchi').trim();
     final model = (trip.user?.car?.model ?? '-').trim();
     final color = (trip.user?.car?.color ?? '-').trim();
     final number = (trip.user?.car?.number ?? '-').trim();
@@ -562,15 +597,12 @@ class _CityTripBottomSheet extends StatelessWidget {
               const SizedBox(height: 8),
 
               _SheetInfoRow(
-                label: 'sheet_from_label'.tr(),
+                label: "Qayerdan",
                 value: from,
                 icon: Icons.location_on,
               ),
               const SizedBox(height: 10),
-              _SheetInfoRow(
-                  label: 'sheet_to_label'.tr(),
-                  value: to,
-                  icon: Icons.flag),
+              _SheetInfoRow(label: "Qayerga", value: to, icon: Icons.flag),
 
               const SizedBox(height: 14),
 
@@ -578,7 +610,7 @@ class _CityTripBottomSheet extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _SheetInfoTile(
-                      label: 'sheet_date_label'.tr(),
+                      label: "Sana",
                       value: date,
                       icon: Icons.calendar_today,
                     ),
@@ -586,7 +618,7 @@ class _CityTripBottomSheet extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _SheetInfoTile(
-                      label: 'sheet_time_label'.tr(),
+                      label: "Vaqt",
                       value: time,
                       icon: Icons.access_time,
                     ),
@@ -599,7 +631,7 @@ class _CityTripBottomSheet extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _SheetInfoTile(
-                      label: 'sheet_seats_label'.tr(),
+                      label: "O‘rinlar",
                       value: seats,
                       icon: Icons.people_alt_outlined,
                     ),
@@ -607,7 +639,7 @@ class _CityTripBottomSheet extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _SheetInfoTile(
-                      label: 'sheet_price_label'.tr(),
+                      label: "Narx",
                       value: price,
                       icon: Icons.payments_outlined,
                     ),
@@ -644,7 +676,7 @@ class _CityTripBottomSheet extends StatelessWidget {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            name.isEmpty ? 'sheet_driver_default'.tr() : name,
+                            name.isEmpty ? "Haydovchi" : name,
                             style: const TextStyle(
                               fontSize: 15.5,
                               fontWeight: FontWeight.w600,
@@ -658,19 +690,17 @@ class _CityTripBottomSheet extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: _SheetMiniInfo(
-                              label: 'sheet_model_label'.tr(), value: model),
+                          child: _SheetMiniInfo(label: "Model", value: model),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: _SheetMiniInfo(
-                              label: 'sheet_color_label'.tr(), value: color),
+                          child: _SheetMiniInfo(label: "Rang", value: color),
                         ),
                       ],
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'sheet_number_label'.tr(namedArgs: {'num': number}),
+                      "Raqam: $number",
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF111827),
@@ -686,7 +716,7 @@ class _CityTripBottomSheet extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _SheetActionButton(
-                      text: 'trip_book_order'.tr(),
+                      text: "Zakazni bron qilish",
                       bg: const Color(0xFF34A853),
                       onTap: actionLoading ? null : onBook,
                     ),
@@ -694,7 +724,7 @@ class _CityTripBottomSheet extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _SheetActionButton(
-                      text: 'trip_offer_price'.tr(),
+                      text: "Narx taklif qilish",
                       bg: const Color(0xFF2563EB),
                       onTap: actionLoading ? null : onOffer,
                     ),
@@ -726,7 +756,7 @@ class _CityTripBottomSheet extends StatelessWidget {
 
   String _shortTime(String t) {
     final s = t.trim();
-    if (s.isEmpty) return '-';
+    if (s.isEmpty) return "-";
     return s.length >= 5 ? s.substring(0, 5) : s;
   }
 
@@ -738,7 +768,7 @@ class _CityTripBottomSheet extends StatelessWidget {
       buf.write(str[i]);
       if (left > 1 && left % 3 == 1) buf.write(' ');
     }
-    return '${buf.toString()} UZS';
+    return "${buf.toString()} UZS";
   }
 }
 
@@ -766,8 +796,7 @@ class _SheetInfoRow extends StatelessWidget {
             children: [
               Text(
                 label,
-                style:
-                const TextStyle(color: Color(0xFF6B7280), fontSize: 12),
+                style: const TextStyle(color: Color(0xFF6B7280), fontSize: 12),
               ),
               const SizedBox(height: 2),
               Text(
@@ -775,7 +804,7 @@ class _SheetInfoRow extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 14, // bir xil typography
                   fontWeight: FontWeight.w600,
                   color: Color(0xFF111827),
                 ),
@@ -829,7 +858,7 @@ class _SheetInfoTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 14, // bir xil typography
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF111827),
                   ),
