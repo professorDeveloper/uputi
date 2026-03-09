@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:easy_localization/easy_localization.dart'as locale;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart' as geolocator;
@@ -432,12 +433,13 @@ class _DriverDirectionsBodyState extends State<_DriverDirectionsBody> {
                 !state.loadingStart &&
                 !state.loadingFinish;
 
+
         final startTitle = hasStart
             ? state.startAddress
-            : 'A manzilni tanlang';
+            : locale.tr("map_select_a");
         final finishTitle = hasFinish
             ? state.finishAddress
-            : 'B manzilni tanlang';
+            : locale.tr("map_select_b");
 
         return Scaffold(
           body: Column(

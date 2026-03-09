@@ -38,7 +38,7 @@ class _BodyState extends State<_Body> {
     "Toshkent": mapbox.Position(69.2401, 41.2995),
     "Samarqand": mapbox.Position(66.9597, 39.6542),
     "Buxoro": mapbox.Position(64.4200, 39.7747),
-    "Farg‘ona": mapbox.Position(71.7864, 40.3894),
+    "Farg'ona": mapbox.Position(71.7864, 40.3894),
     "Andijon": mapbox.Position(72.3442, 40.7821),
     "Namangan": mapbox.Position(71.6726, 41.0011),
     "Qashqadaryo": mapbox.Position(65.7833, 38.8667),
@@ -47,7 +47,7 @@ class _BodyState extends State<_Body> {
     "Sirdaryo": mapbox.Position(68.6617, 40.5014),
     "Xorazm": mapbox.Position(60.6167, 41.5500),
     "Navoiy": mapbox.Position(65.3750, 40.0844),
-    "Qoraqalpog‘iston": mapbox.Position(59.6100, 42.4600),
+    "Qoraqalpog'iston": mapbox.Position(59.6100, 42.4600),
   };
 
   bool get hasRoute => fromRegion != null && toRegion != null;
@@ -84,7 +84,7 @@ class _BodyState extends State<_Body> {
             ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 104),
               children: [
-                const _SectionTitle("Yo‘nalish"),
+                _SectionTitle('section_direction'.tr()),
                 const SizedBox(height: 10),
                 _SoftSelectField(
                   label: 'field_from'.tr(),
@@ -159,7 +159,7 @@ class _BodyState extends State<_Body> {
                 ),
                 const SizedBox(height: 12),
                 _SoftSelectField(
-                  label: "Yo‘lovchilar",
+                  label: 'field_passengers'.tr(),
                   value: "${s.seats}",
                   placeholder: 'placeholder_select'.tr(),
                   enabled: !loading,
@@ -725,7 +725,7 @@ Future<int?> _pickPassengersBottomSheet(
     clipBehavior: Clip.antiAlias,
     builder: (ctx) {
       return _WhiteSheetShell(
-        title: "Yo‘lovchilar",
+        title: 'field_passengers'.tr(),
         onDone: () => Navigator.pop(ctx, temp),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),

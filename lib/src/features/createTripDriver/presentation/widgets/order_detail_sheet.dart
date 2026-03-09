@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uputi/src/helpers/flushbar.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_color.dart';
 import '../bloc/create_trip_bloc.dart';
@@ -202,6 +203,7 @@ class _DriverTripDetailsSheetState extends State<_DriverTripDetailsSheet> {
     context.read<DriverTripCreateBloc>().add(DriverTripCreateTimeChanged(picked));
   }
 
+
   void _submit(DriverTripCreateState s) {
     if (!s.canSubmit) {
       _sumFocus.requestFocus();
@@ -253,15 +255,20 @@ class _DriverTripDetailsSheetState extends State<_DriverTripDetailsSheet> {
 
         if (s.status == DriverTripCreateStatus.failure) {
           _sumFocus.requestFocus();
-          if ((s.errorMessage ?? '').isNotEmpty) {
+          if (s.insufficientBalance) {
+            showErrorFlushBar('balance_insufficient'.tr()).show(context);
+          } else if ((s.errorMessage ?? '').isNotEmpty) {
             showErrorFlushBar(s.errorMessage!).show(context);
           }
         }
       },
       builder: (context, s) {
         final loading = s.status == DriverTripCreateStatus.submitting;
-        final errorText =
-        s.status == DriverTripCreateStatus.failure ? (s.errorMessage ?? '') : '';
+        final errorText = s.status == DriverTripCreateStatus.failure
+            ? (s.insufficientBalance
+                ? 'balance_insufficient'.tr()
+                : (s.errorMessage ?? ''))
+            : '';
         final seats = s.seats.clamp(_minSeats, _maxSeats);
         final canMinus = seats > _minSeats && !loading;
         final canPlus = seats < _maxSeats && !loading;
@@ -430,7 +437,7 @@ class _DriverTripDetailsSheetState extends State<_DriverTripDetailsSheet> {
                                                   hint: 'sheet_price_hint'.tr(),
                                                   errorText: errorText.isEmpty
                                                       ? null
-                                                      : 'Narxni kiriting',
+                                                      : 'sheet_price_hint'.tr(),
                                                   keyboardType: TextInputType.number,
                                                   inputFormatters: [
                                                     FilteringTextInputFormatter
@@ -456,7 +463,7 @@ class _DriverTripDetailsSheetState extends State<_DriverTripDetailsSheet> {
                                       child: _SoftTextField(
                                         controller: _commentCtrl,
                                         hint: 'field_comment_hint'.tr(),
-                                        keyboardType: TextInputType.text,
+                                        keyboardType: TextInputType.multiline,
                                         maxLines: 3,
                                         enabled: !loading,
                                         textInputAction: TextInputAction.newline,

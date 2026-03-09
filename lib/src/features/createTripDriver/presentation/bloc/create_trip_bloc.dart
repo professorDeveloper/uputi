@@ -1,4 +1,5 @@
 import 'package:bloc/bloc.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../domain/usecase/driver_create_trip_usecase.dart';
@@ -110,6 +111,35 @@ class DriverTripCreateBloc
           status: DriverTripCreateStatus.success,
           createdTrip: res,
           errorMessage: null,
+        ),
+      );
+    } on DioException catch (err) {
+      final data = err.response?.data;
+      final statusCode = err.response?.statusCode;
+
+      if (statusCode == 422 &&
+          data is Map<String, dynamic> ) {
+        emit(
+          state.copyWith(
+            status: DriverTripCreateStatus.failure,
+            insufficientBalance: true,
+            errorMessage: null,
+          ),
+        );
+        return;
+      }
+
+      String message;
+      if (data is Map<String, dynamic>) {
+        message = data['message']?.toString() ?? err.message ?? err.toString();
+      } else {
+        message = err.message ?? err.toString();
+      }
+
+      emit(
+        state.copyWith(
+          status: DriverTripCreateStatus.failure,
+          errorMessage: message,
         ),
       );
     } catch (err) {

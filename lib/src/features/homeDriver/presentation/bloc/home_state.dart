@@ -17,7 +17,6 @@ final class HomeDriverError extends HomeDriverState {
   HomeDriverError(this.message);
 }
 
-/// Boshqa devicedan kirish sababli token yaroqsiz
 final class HomeDriverUnauthorized extends HomeDriverState {}
 
 class HomeDriverLoaded extends HomeDriverState {

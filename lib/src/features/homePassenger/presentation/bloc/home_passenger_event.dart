@@ -5,7 +5,10 @@ sealed class HomePassengerEvent {}
 
 class HomePassengerInit extends HomePassengerEvent {}
 
-class HomePassengerSilentRefresh extends HomePassengerEvent {}
+class HomePassengerSilentRefresh extends HomePassengerEvent {
+  final bool isTab1;
+   HomePassengerSilentRefresh({this.isTab1 = false});
+}
 
 class LoadMoreActiveTrips extends HomePassengerEvent {}
 

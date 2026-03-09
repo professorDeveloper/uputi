@@ -23,6 +23,11 @@ class DriverCompleteTripPressed extends HomeDriverEvent {
   final int tripId;
   DriverCompleteTripPressed({required this.tripId});
 }
+class DriverCompleteMyBookingTripPressed extends HomeDriverEvent {
+  final int tripId;
+  DriverCompleteMyBookingTripPressed({required this.tripId});
+}
+
 
 class DriverMyTripsTabOpened extends HomeDriverEvent {}
 

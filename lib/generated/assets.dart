@@ -23,10 +23,10 @@ class Assets {
   static const String imagesIntro2 = 'assets/images/intro2.svg';
   static const String imagesIntro3 = 'assets/images/intro3.svg';
   static const String imagesLoginpic = 'assets/images/loginpic.png';
+  static const String imagesLogo = 'assets/images/logo.jpg';
   static const String imagesOtp = 'assets/images/otp.png';
   static const String lottiesDriver = 'assets/lotties/driver.json';
   static const String lottiesPassanger = 'assets/lotties/passanger.json';
-  static const String translationsEn = 'assets/translations/en.json';
   static const String translationsRu = 'assets/translations/ru.json';
   static const String translationsUz = 'assets/translations/uz.json';
   static const String uputi = '.env';

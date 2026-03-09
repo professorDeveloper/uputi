@@ -13,18 +13,6 @@ final class ProfileRefresh extends ProfileEvent {
   const ProfileRefresh();
 }
 
-final class ProfileRoleChanged extends ProfileEvent {
-  final String role;
-  const ProfileRoleChanged(this.role);
-}
-
-/// API ga POST /api/role/update yuboradi, keyin shellga o'tadi
-final class ProfileRoleUpdateRequested extends ProfileEvent {
-  final String role;
-  const ProfileRoleUpdateRequested(this.role);
-}
-
-/// API ga POST /api/car/driver yuboradi (create or update)
 final class ProfileCarUpdateRequested extends ProfileEvent {
   final String model;
   final String color;

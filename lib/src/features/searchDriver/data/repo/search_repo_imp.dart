@@ -17,8 +17,9 @@ class SearchDriverRepositoryImpl implements SearchDriverRepository {
     required String from,
     required String to,
     String? date,
+    int? page,
   }) {
-    return regionDs.searchPassengers(from: from, to: to, date: date);
+    return regionDs.searchPassengers(from: from, to: to, date: date, page: page);
   }
 
   @override

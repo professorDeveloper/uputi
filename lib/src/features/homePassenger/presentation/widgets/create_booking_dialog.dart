@@ -76,10 +76,10 @@ Future<int?> showSeatsBottomSheet(
                       const SizedBox(height: 14),
                       Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Text(
-                              "Nechta o‘rin kerak?",
-                              style: TextStyle(
+                              'booking_seats_title'.tr(),
+                              style: const TextStyle(
                                 fontSize: 20,
                                 height: 1.15,
                                 fontWeight: FontWeight.w700,

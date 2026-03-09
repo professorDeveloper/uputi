@@ -8,6 +8,7 @@ import '../../data/model/driver_my_trips.dart';
 import '../../data/model/driver_paggination.dart';
 import '../../domain/usecase/accept_booking_usecase.dart';
 import '../../domain/usecase/cancel_booking_usecase.dart';
+import '../../domain/usecase/complete_my_bookings_trip_usecase.dart';
 import '../../domain/usecase/complete_trip_usecase.dart';
 import '../../domain/usecase/create_booking_usecase.dart';
 import '../../domain/usecase/get_active_trips_usecase.dart';
@@ -25,6 +26,7 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
   final CreateDriverBookingUseCase createBooking;
   final CancelDriverBookingUseCase cancelBooking;
   final CompleteTripUseCase completeTrip;
+  final CompleteMyBookingsTripUsecase completeMyBookingsTripUsecase;
   final GetDriverMyTripsUseCase getMyTrips;
   final AcceptDriverBookingUseCase acceptBooking;
   final RejectDriverBookingUseCase rejectBooking;
@@ -33,6 +35,7 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
     required this.getUser,
     required this.getBookings,
     required this.getTrips,
+    required this.completeMyBookingsTripUsecase,
     required this.createBooking,
     required this.cancelBooking,
     required this.completeTrip,
@@ -46,8 +49,10 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
     on<DriverCreateBookingRequested>(_onCreateBooking);
     on<DriverCancelBookingPressed>(_onCancelBooking);
     on<DriverCompleteTripPressed>(_onCompleteTrip);
+    on<DriverCompleteMyBookingTripPressed>(_onCompleteTripMyBookings);
     on<DriverMyTripsTabOpened>(_onMyTripsTabOpened);
     on<DriverRefreshMyTripsPressed>(_onRefreshMyTrips);
+
     on<DriverAcceptBookingPressed>(_onAcceptBooking);
     on<DriverAcceptIncomingBookingPressed>(_onAcceptIncomingBooking);
     on<DriverRejectIncomingBookingPressed>(_onRejectIncomingBooking);
@@ -55,6 +60,7 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
   }
 
   bool _silentRefreshing = false;
+  bool _operationInProgress = false;
 
   bool _isUnauth(dynamic error) {
     final msg = error.toString().toLowerCase();
@@ -95,6 +101,7 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
     final s = state;
     if (s is! HomeDriverLoaded) return;
     if (_silentRefreshing) return;
+    if (_operationInProgress) return;
     _silentRefreshing = true;
 
     try {
@@ -135,7 +142,15 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
         rejectError: s.rejectError,
       ));
     } catch (e) {
-      if (_isUnauth(e)) emit(HomeDriverUnauthorized());
+      if (_isUnauth(e)) {
+        emit(HomeDriverUnauthorized());
+      } else {
+        // Emit current state so RefreshIndicator completer can complete
+        final current = state;
+        if (current is HomeDriverLoaded) {
+          emit(current.copyWith());
+        }
+      }
     } finally {
       _silentRefreshing = false;
     }
@@ -176,18 +191,23 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
     final s = state;
     if (s is! HomeDriverLoaded) return;
 
+    _operationInProgress = true;
     emit(s.copyWith(isCreateLoading: true, createMessage: null, createError: null));
     try {
       final msg = await createBooking(tripId: event.tripId);
-      final refreshed = await _refreshAll(s);
+      final refreshed = await _refreshAll();
       emit(refreshed.copyWith(isCreateLoading: false, createMessage: msg));
     } catch (e) {
-
       if (_isUnauth(e)) {
         emit(HomeDriverUnauthorized());
       } else {
-        emit(s.copyWith(isCreateLoading: false, createError: e.toString()));
+        final cur = state;
+        emit(cur is HomeDriverLoaded
+            ? cur.copyWith(isCreateLoading: false, createError: e.toString())
+            : s.copyWith(isCreateLoading: false, createError: e.toString()));
       }
+    } finally {
+      _operationInProgress = false;
     }
   }
 
@@ -198,18 +218,23 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
     final s = state;
     if (s is! HomeDriverLoaded) return;
 
+    _operationInProgress = true;
     emit(s.copyWith(isCancelLoading: true, cancelMessage: null, cancelError: null));
     try {
       final msg = await cancelBooking(bookingId: event.bookingId);
-      final refreshed = await _refreshAll(s);
+      final refreshed = await _refreshAll();
       emit(refreshed.copyWith(isCancelLoading: false, cancelMessage: msg));
     } catch (e, st) {
-
       if (_isUnauth(e)) {
         emit(HomeDriverUnauthorized());
       } else {
-        emit(s.copyWith(isCancelLoading: false, cancelError: e.toString()));
+        final cur = state;
+        emit(cur is HomeDriverLoaded
+            ? cur.copyWith(isCancelLoading: false, cancelError: e.toString())
+            : s.copyWith(isCancelLoading: false, cancelError: e.toString()));
       }
+    } finally {
+      _operationInProgress = false;
     }
   }
 
@@ -220,18 +245,50 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
     final s = state;
     if (s is! HomeDriverLoaded) return;
 
+    _operationInProgress = true;
     emit(s.copyWith(isCompleteLoading: true, completeMessage: null, completeError: null));
     try {
       final msg = await completeTrip(tripId: event.tripId);
-      final refreshed = await _refreshAll(s);
+      final refreshed = await _refreshAll();
       emit(refreshed.copyWith(isCompleteLoading: false, completeMessage: msg));
     } catch (e, st) {
-
       if (_isUnauth(e)) {
         emit(HomeDriverUnauthorized());
       } else {
-        emit(s.copyWith(isCompleteLoading: false, completeError: e.toString()));
+        final cur = state;
+        emit(cur is HomeDriverLoaded
+            ? cur.copyWith(isCompleteLoading: false, completeError: e.toString())
+            : s.copyWith(isCompleteLoading: false, completeError: e.toString()));
       }
+    } finally {
+      _operationInProgress = false;
+    }
+  }
+
+  Future<void> _onCompleteTripMyBookings(
+      DriverCompleteMyBookingTripPressed event,
+      Emitter<HomeDriverState> emit,
+      ) async {
+    final s = state;
+    if (s is! HomeDriverLoaded) return;
+
+    _operationInProgress = true;
+    emit(s.copyWith(isCompleteLoading: true, completeMessage: null, completeError: null));
+    try {
+      final msg = await completeMyBookingsTripUsecase(tripId: event.tripId);
+      final refreshed = await _refreshAll();
+      emit(refreshed.copyWith(isCompleteLoading: false, completeMessage: msg));
+    } catch (e, st) {
+      if (_isUnauth(e)) {
+        emit(HomeDriverUnauthorized());
+      } else {
+        final cur = state;
+        emit(cur is HomeDriverLoaded
+            ? cur.copyWith(isCompleteLoading: false, completeError: e.toString())
+            : s.copyWith(isCompleteLoading: false, completeError: e.toString()));
+      }
+    } finally {
+      _operationInProgress = false;
     }
   }
 
@@ -242,18 +299,23 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
     final s = state;
     if (s is! HomeDriverLoaded) return;
 
+    _operationInProgress = true;
     emit(s.copyWith(isAcceptLoading: true, acceptMessage: null, acceptError: null));
     try {
       final msg = await acceptBooking(bookingId: event.bookingId);
-      final refreshed = await _refreshAll(s);
+      final refreshed = await _refreshAll();
       emit(refreshed.copyWith(isAcceptLoading: false, acceptMessage: msg));
     } catch (e, st) {
-
       if (_isUnauth(e)) {
         emit(HomeDriverUnauthorized());
       } else {
-        emit(s.copyWith(isAcceptLoading: false, acceptError: e.toString()));
+        final cur = state;
+        emit(cur is HomeDriverLoaded
+            ? cur.copyWith(isAcceptLoading: false, acceptError: e.toString())
+            : s.copyWith(isAcceptLoading: false, acceptError: e.toString()));
       }
+    } finally {
+      _operationInProgress = false;
     }
   }
 
@@ -264,18 +326,23 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
     final s = state;
     if (s is! HomeDriverLoaded) return;
 
+    _operationInProgress = true;
     emit(s.copyWith(isRejectLoading: true, rejectMessage: null, rejectError: null));
     try {
       final msg = await rejectBooking(bookingId: event.bookingId);
-      final refreshed = await _refreshAll(s);
+      final refreshed = await _refreshAll();
       emit(refreshed.copyWith(isRejectLoading: false, rejectMessage: msg));
     } catch (e, st) {
-
       if (_isUnauth(e)) {
         emit(HomeDriverUnauthorized());
       } else {
-        emit(s.copyWith(isRejectLoading: false, rejectError: e.toString()));
+        final cur = state;
+        emit(cur is HomeDriverLoaded
+            ? cur.copyWith(isRejectLoading: false, rejectError: e.toString())
+            : s.copyWith(isRejectLoading: false, rejectError: e.toString()));
       }
+    } finally {
+      _operationInProgress = false;
     }
   }
 
@@ -329,14 +396,31 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
     emit(s.copyWith(isMyTripsLoading: true, myTripsError: null));
 
     try {
-      final res = await getMyTrips();
+      final results = await Future.wait([
+        getMyTrips(),
+        getUser(),
+        getTrips(page: 1, perPage: 10),
+        getBookings(),
+      ]);
+
       final current = state;
       if (current is! HomeDriverLoaded) return;
 
+      final freshMyTrips = results[0] as DriverMyTripsResponse;
+      final freshUser = results[1] as DriverUserModel;
+      final freshPage = results[2] as PassengerTripsPage;
+      final freshBookings = results[3] as List<DriverBookingModel>;
+
       emit(current.copyWith(
-        myTrips: res.items,
+        myTrips: freshMyTrips.items,
         isMyTripsLoading: false,
         myTripsLoadedOnce: true,
+        user: freshUser,
+        inProgress: freshBookings,
+        trips: freshPage.items,
+        tripsNextPage: freshPage.nextPage,
+        tripsHasMore: freshPage.hasMore,
+        isTripsLoadingMore: false,
       ));
     } catch (e, st) {
 
@@ -361,21 +445,29 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
     final s = state;
     if (s is! HomeDriverLoaded) return;
 
+    _operationInProgress = true;
     emit(s.copyWith(isCreateLoading: true, createMessage: null, createError: null));
     try {
-      final refreshed = await _refreshAll(s);
+      final refreshed = await _refreshAll();
       emit(refreshed.copyWith(isCreateLoading: false, createMessage: 'booking_status_accepted'.tr()));
     } catch (e, st) {
-
       if (_isUnauth(e)) {
         emit(HomeDriverUnauthorized());
       } else {
-        emit(s.copyWith(isCreateLoading: false, createError: e.toString()));
+        final cur = state;
+        emit(cur is HomeDriverLoaded
+            ? cur.copyWith(isCreateLoading: false, createError: e.toString())
+            : s.copyWith(isCreateLoading: false, createError: e.toString()));
       }
+    } finally {
+      _operationInProgress = false;
     }
   }
 
-  Future<HomeDriverLoaded> _refreshAll(HomeDriverLoaded s) async {
+  Future<HomeDriverLoaded> _refreshAll() async {
+    final cur = state;
+    final base = cur is HomeDriverLoaded ? cur : null;
+
     final results = await Future.wait([
       getUser(),
       getBookings(),
@@ -383,14 +475,33 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
     ]);
     final tripsPage = results[2] as PassengerTripsPage;
 
-    List<DriverMyTripItem> myTrips = s.myTrips;
-    if (s.myTripsLoadedOnce) {
+    final bool shouldRefreshMyTrips = base?.myTripsLoadedOnce ?? false;
+    List<DriverMyTripItem> myTrips = base?.myTrips ?? const [];
+    if (shouldRefreshMyTrips) {
       try {
         myTrips = (await getMyTrips()).items;
       } catch (_) {}
     }
 
-    return s.copyWith(
+    // Use the LATEST state as base for copyWith to avoid overwriting
+    // changes made by concurrent handlers
+    final latest = state;
+    final latestLoaded = latest is HomeDriverLoaded ? latest : base;
+
+    if (latestLoaded == null) {
+      // Fallback: build a fresh state
+      return HomeDriverLoaded(
+        user: results[0] as DriverUserModel,
+        inProgress: results[1] as List<DriverBookingModel>,
+        trips: tripsPage.items,
+        tripsNextPage: tripsPage.nextPage,
+        tripsHasMore: tripsPage.hasMore,
+        myTrips: myTrips,
+        myTripsLoadedOnce: shouldRefreshMyTrips,
+      );
+    }
+
+    return latestLoaded.copyWith(
       user: results[0] as DriverUserModel,
       inProgress: results[1] as List<DriverBookingModel>,
       trips: tripsPage.items,
@@ -398,27 +509,9 @@ class HomeDriverBloc extends Bloc<HomeDriverEvent, HomeDriverState> {
       tripsHasMore: tripsPage.hasMore,
       isTripsLoadingMore: false,
       myTrips: myTrips,
+      myTripsLoadedOnce: shouldRefreshMyTrips || latestLoaded.myTripsLoadedOnce,
     );
   }
 
-  List<T> _merge<T>({
-    required List<T> old,
-    required List<T> fresh,
-    required int Function(T) id,
-  }) {
-    final freshMap = <int, T>{for (final x in fresh) id(x): x};
-    final result = <T>[];
-    final used = <int>{};
-    for (final o in old) {
-      final k = id(o);
-      if (freshMap.containsKey(k)) {
-        result.add(freshMap[k]!);
-        used.add(k);
-      }
-    }
-    for (final f in fresh) {
-      if (!used.contains(id(f))) result.add(f);
-    }
-    return result;
-  }
+
 }

@@ -45,6 +45,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           message: res.message,
           error: null,
           loggedIn: true,
+          accessToken: res.accessToken,
         ),
       );
       return;

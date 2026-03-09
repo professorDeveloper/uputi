@@ -46,7 +46,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (accessToken == null) {
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, Pages.login);
+      Navigator.pushReplacementNamed(context, Pages.chooseLanguage);
       return;
     }
 
@@ -56,9 +56,9 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     if (!isValid) {
-      // Unauthenticated — prefs tozalab loginга yuboramiz
+      // Unauthenticated — prefs tozalab til tanlash sahifasiga yuboramiz
       await Prefs.clear();
-      Navigator.pushReplacementNamed(context, Pages.login);
+      Navigator.pushReplacementNamed(context, Pages.chooseLanguage);
       return;
     }
 

@@ -3,7 +3,6 @@
   "lang_subtitle": "На каком языке вы будете использовать приложение?",
   "lang_uz": "O'zbek",
   "lang_ru": "Русский",
-  "lang_en": "English",
   "lang_continue": "Продолжить",
   "login_title": "Вход в систему",
   "login_subtitle": "Введите ваш номер телефона и имя для входа.",
@@ -126,6 +125,8 @@
   "trip_car_color_label": "Цвет",
   "trip_car_number": "Номер: {num}",
   "trip_offer_label": "Предложение: {price}",
+  "search_map_moving": "Карта перемещается...",
+
   "trip_no_driver": "Водитель ещё не найден. Поиск продолжается.",
   "trip_call_driver": "Позвонить",
   "trip_driver_label": "Водитель",
@@ -147,6 +148,10 @@
   "telegram_not_connected": "Telegram ещё не подключён. Нажмите /start в боте.",
   "telegram_check_error": "Ошибка проверки. Попробуйте снова.",
   "telegram_open_failed": "Не удалось открыть Telegram",
+  "role_change_title": "Изменение роли",
+  "role_change_desc": "Для изменения роли необходимо связаться с диспетчером. Нажмите кнопку ниже, чтобы обратиться за помощью.",
+  "role_change_contact_support": "Написать диспетчеру",
+
   "telegram_connect_btn": "Подключить Telegram",
   "telegram_check_btn": "Подключён? Проверить",
   "telegram_checking": "Проверяется...",
@@ -182,6 +187,8 @@
   "profile_car_model": "Модель",
   "profile_car_color": "Цвет",
   "profile_car_number": "Номер",
+  "profile_balance": "Баланс",
+  "profile_balance_topup": "Пополнить баланс",
   "profile_support": "Техническая поддержка",
   "profile_logout": "Выйти",
   "profile_error": "Ошибка загрузки профиля",
@@ -217,5 +224,10 @@
   "sheet_accept_btn": "Принять",
   "trip_invalid_id": "Неверный ID поездки",
   "profile_language": "Язык",
-  "profile_language_title": "Выберите язык"
+  "profile_language_title": "Выберите язык",
+  "balance_insufficient": "Недостаточно средств на балансе. Пожалуйста, пополните баланс.",
+  "search_location_search": "Поиск по местоположению",
+  "search_found_count": "Найдено: {count}",
+  "currency_som": "сум",
+  "sheet_show_route": "Показать маршрут"
 }

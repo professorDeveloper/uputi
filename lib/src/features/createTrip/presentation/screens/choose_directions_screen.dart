@@ -7,7 +7,7 @@ import 'package:geolocator/geolocator.dart' as geolocator;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'package:uputi/src/features/createTrip/presentation/blocs/trip_create_bloc.dart';
 import 'package:uputi/src/helpers/flushbar.dart';
-
+import 'package:easy_localization/easy_localization.dart' as localization;
 import '../../../../core/constants/app_color.dart';
 import '../../../../di/di.dart';
 import '../blocs/choose_direction_bloc.dart';
@@ -311,10 +311,14 @@ class _ChooseDirectionsScreenState extends State<ChooseDirectionsScreen> {
   }
 
   Future<void> _continue(ChooseDirectionsState s) async {
-    final ready = (s.error ?? '').isEmpty &&
-        s.startLat != null && s.startLng != null &&
-        s.finishLat != null && s.finishLng != null &&
-        !s.loadingStart && !s.loadingFinish;
+    final ready =
+        (s.error ?? '').isEmpty &&
+        s.startLat != null &&
+        s.startLng != null &&
+        s.finishLat != null &&
+        s.finishLng != null &&
+        !s.loadingStart &&
+        !s.loadingFinish;
 
     if (!ready) return;
 
@@ -454,10 +458,12 @@ class _ChooseDirectionsScreenState extends State<ChooseDirectionsScreen> {
             !state.loadingStart &&
             !state.loadingFinish;
 
-        final startTitle = hasStart ? state.startAddress : 'A manzilni tanlang';
+        final startTitle = hasStart
+            ? state.startAddress
+            : localization.tr("map_select_a");
         final finishTitle = hasFinish
             ? state.finishAddress
-            : 'B manzilni tanlang';
+            : localization.tr("map_select_b");
 
         return Scaffold(
           body: Column(
@@ -637,7 +643,7 @@ class _ChooseDirectionsScreenState extends State<ChooseDirectionsScreen> {
                           ),
                           color: AppColor.blueMain,
                           textColor: Colors.white,
-                          child: const Text('Davom etish'),
+                          child: Text(localization.tr("map_continue")),
                         ),
                       )
                     else

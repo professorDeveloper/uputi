@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -41,10 +43,6 @@ class _PassengersHistoryScreenState extends State<PassengersHistoryScreen>
       _scrollToTopDeferred();
       context.read<HistoryBloc>().add(HistoryChangeType(type: nextType));
     });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<HistoryBloc>().add(HistoryFetchFirst(type: 1));
-    });
   }
 
   void _onScroll() {
@@ -54,13 +52,32 @@ class _PassengersHistoryScreenState extends State<PassengersHistoryScreen>
     final current = _scrollController.offset;
 
     if (current >= maxScroll - 220) {
-      context.read<HistoryBloc>().add(HistoryLoadMore());
+      final st = context.read<HistoryBloc>().state;
+      if (st is HistoryLoaded && st.hasNext && !st.isLoadingMore) {
+        context.read<HistoryBloc>().add(HistoryLoadMore());
+      }
     }
   }
 
   Future<void> _onRefresh() async {
-    context.read<HistoryBloc>().add(HistoryRefresh());
-    await Future<void>.delayed(const Duration(milliseconds: 350));
+    final bloc = context.read<HistoryBloc>();
+    final completer = Completer<void>();
+
+    StreamSubscription<HistoryState>? sub;
+    sub = bloc.stream.listen((state) {
+      if (state is HistoryLoaded || state is HistoryFailure) {
+        if (!completer.isCompleted) completer.complete();
+        sub?.cancel();
+      }
+    });
+
+    bloc.add(HistoryRefresh());
+
+    await completer.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () {},
+    );
+    sub.cancel();
   }
 
   void _scrollToTopDeferred() {
@@ -181,7 +198,7 @@ class _PassengersHistoryScreenState extends State<PassengersHistoryScreen>
                     _EmptyHistory(
                       ui: ui,
                       asset: AppIcons.placeHolderHistory,
-                      title: "Hozircha hech qanday\nbuyurtma tarixi yo‘q!",
+                      title: 'history_empty'.tr(),
                     ),
                   ],
                 ),
@@ -655,7 +672,7 @@ class _DriverSection extends StatelessWidget {
                 ),
               if (car != null) const SizedBox(height: 6),
               Text(
-                "O‘rindiq: ${trip.seats}",
+                'history_seats'.tr(namedArgs: {'count': '${trip.seats}'}),
                 style: const TextStyle(
                   fontSize: 12.5,
                   color: Colors.black54,
@@ -802,7 +819,7 @@ class HistoryFormat {
       buf.write(s[i]);
       if (fromEnd > 1 && fromEnd % 3 == 1) buf.write(' ');
     }
-    return "${buf.toString()} so'm";
+    return "${buf.toString()} ${'currency_som'.tr()}";
   }
 
   static String initials(String name) {

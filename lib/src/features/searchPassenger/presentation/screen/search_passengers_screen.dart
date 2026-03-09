@@ -124,6 +124,28 @@ class _RegionsSearchTabState extends State<_RegionsSearchTab>
   String _to = 'Samarqand';
   DateTime? _date;
 
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      context.read<SearchTripsBloc>().add(SearchTripsLoadMoreRequested());
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   final List<String> _cities = const [
     'Toshkent', 'Andijon', 'Farg\'ona', 'Namangan', 'Sirdaryo',
     'Jizzax', 'Samarqand', 'Qashqadaryo', 'Surxondaryo',
@@ -164,6 +186,7 @@ class _RegionsSearchTabState extends State<_RegionsSearchTab>
           ),
         ],
         child: ListView(
+          controller: _scrollController,
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
           children: [
             if (_filtersExpanded) ...[
@@ -364,31 +387,78 @@ class _RegionsSearchTabState extends State<_RegionsSearchTab>
             );
           }
           final actionLoading = state.actionLoading;
+          final pagination = state.response.pagination;
+          final hasMore = pagination.hasNextPage;
+          final paginationLoading = state.paginationLoading;
+
           return Column(
-            children: trips.map((t) => TripCard.driver(
-              t,
-                  (_) async {
-                if (actionLoading) return;
-                final seats = await showSeatsBottomSheet(context, min: 1, max: 4);
-                if (!context.mounted || seats == null) return;
-                context.read<SearchTripsBloc>().add(
-                  SearchTripsCreateBookingRequested(tripId: t.id, seats: seats),
-                );
-              },
-                  (_) async {
-                if (actionLoading) return;
-                final res = await showOfferPriceBottomSheet(context, minSeats: 1, maxSeats: 4);
-                if (!context.mounted || res == null) return;
-                context.read<SearchTripsBloc>().add(
-                  SearchTripsOfferPriceRequested(
-                    tripId: t.id,
-                    seats: res.seats,
-                    offeredPrice: res.price,
-                    comment: res.comment,
+            children: [
+              ...trips.map((t) => TripCard.driver(
+                t,
+                    (_) async {
+                  if (actionLoading) return;
+                  final seats = await showSeatsBottomSheet(context, min: 1, max: 4);
+                  if (!context.mounted || seats == null) return;
+                  context.read<SearchTripsBloc>().add(
+                    SearchTripsCreateBookingRequested(tripId: t.id, seats: seats),
+                  );
+                },
+                    (_) async {
+                  if (actionLoading) return;
+                  final res = await showOfferPriceBottomSheet(context, minSeats: 1, maxSeats: 4);
+                  if (!context.mounted || res == null) return;
+                  context.read<SearchTripsBloc>().add(
+                    SearchTripsOfferPriceRequested(
+                      tripId: t.id,
+                      seats: res.seats,
+                      offeredPrice: res.price,
+                      comment: res.comment,
+                    ),
+                  );
+                },
+              )),
+
+              // Pagination indicator / load-more button
+              if (hasMore) ...[
+                const SizedBox(height: 8),
+                if (paginationLoading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  )
+                else
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => context
+                          .read<SearchTripsBloc>()
+                          .add(SearchTripsLoadMoreRequested()),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: _RegionsSearchTab._border),
+                        foregroundColor: _RegionsSearchTab._primary,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: Text(
+                        'search_load_more'.tr(),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                    ),
                   ),
-                );
-              },
-            )).toList(),
+                const SizedBox(height: 4),
+                Center(
+                  child: Text(
+                    '${trips.length} / ${pagination.total ?? '?'}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: _RegionsSearchTab._muted,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           );
         }
         return _surface(

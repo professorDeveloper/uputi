@@ -1,4 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -34,6 +35,99 @@ class _PassengersProfileScreenState extends State<PassengersProfileScreen> {
 
   Future<void> _openSupport() async {
     final uri = Uri.parse('https://t.me/uputi_support');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _showRoleChangeInfo(BuildContext context) async {
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE5E7EB),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.support_agent_rounded, size: 30, color: Color(0xFF2563EB)),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'role_change_title'.tr(),
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'role_change_desc'.tr(),
+                  style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280), height: 1.5),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _openSupport();
+                    },
+                    icon: const Icon(Icons.send_rounded, size: 18),
+                    label: Text(
+                      'role_change_contact_support'.tr(),
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF6B7280),
+                    ),
+                    child: Text('btn_cancel'.tr(), style: const TextStyle(fontSize: 15)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openBalance() async {
+    final uri = Uri.parse('https://t.me/Uputi_balance');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
@@ -85,7 +179,9 @@ class _PassengersProfileScreenState extends State<PassengersProfileScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ProfileBloc>().add(const ProfileFetch());
+      if (mounted) {
+        context.read<ProfileBloc>().add(const ProfileFetch());
+      }
     });
   }
 
@@ -113,9 +209,6 @@ class _PassengersProfileScreenState extends State<PassengersProfileScreen> {
           listener: (context, state) {
             if (state is ProfileFailure) {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message)));
-            }
-            if (state is ProfileLoaded && state.roleUpdated) {
-              _navigateToShell(context, state.data.role);
             }
           },
           builder: (context, state) {
@@ -207,6 +300,62 @@ class _PassengersProfileScreenState extends State<PassengersProfileScreen> {
                       ),
                     ),
 
+                    if (data.isDriver) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          border: BoxBorder.all(
+                              color: Colors.black87,
+                              width: 0.1
+                          ),
+                          color: const Color(0xFFFFFFFF),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              CupertinoIcons.creditcard,
+                              color: Colors.black87,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _fmtBalance(data.balance),
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              height: 32,
+                              child: TextButton.icon(
+                                onPressed: _openBalance,
+                                style: TextButton.styleFrom(
+                                  foregroundColor: const Color(0xFF2563EB),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.add_rounded, size: 16),
+                                label: Text(
+                                  'profile_balance_topup'.tr(),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
                     const SizedBox(height: 14),
 
                     _Card(
@@ -248,15 +397,8 @@ class _PassengersProfileScreenState extends State<PassengersProfileScreen> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                loaded.isRoleUpdating
-                                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                    : TextButton(
-                                  onPressed: () async {
-                                    final picked = await _pickRole(context, current: data.role);
-                                    if (picked != null && picked != data.role && context.mounted) {
-                                      context.read<ProfileBloc>().add(ProfileRoleUpdateRequested(picked));
-                                    }
-                                  },
+                                TextButton(
+                                  onPressed: () => _showRoleChangeInfo(context),
                                   child: Text(
                                     'profile_role_change'.tr(),
                                     style: TextStyle(color: AppColor.blueMain, fontWeight: FontWeight.w500),
@@ -374,6 +516,17 @@ class _PassengersProfileScreenState extends State<PassengersProfileScreen> {
         ),
       ),
     );
+  }
+
+  String _fmtBalance(int v) {
+    final s = v.toString();
+    final b = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      final left = s.length - i;
+      b.write(s[i]);
+      if (left > 1 && left % 3 == 1) b.write(' ');
+    }
+    return '${b.toString()} UZS';
   }
 
   Widget _kv(String k, String v) {
@@ -564,52 +717,6 @@ class _SheetField extends StatelessWidget {
   }
 }
 
-Future<String?> _pickRole(BuildContext context, {required String current}) {
-  const options = ['passenger', 'driver'];
-  String label(String v) => v == 'driver' ? 'role_driver'.tr() : 'role_passenger'.tr();
-
-  return showModalBottomSheet<String>(
-    context: context,
-    backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (ctx) {
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 42,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE5E7EB),
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text('profile_role_select'.tr(),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Color(0xFF111827))),
-              const SizedBox(height: 10),
-              ...options.map((e) {
-                final selected = e == current;
-                return ListTile(
-                  onTap: () => Navigator.pop(ctx, e),
-                  title: Text(label(e), style: const TextStyle(fontWeight: FontWeight.w400)),
-                  trailing: selected ? Icon(Icons.check_rounded, color: AppColor.blueMain) : null,
-                );
-              }),
-              const SizedBox(height: 6),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-
 String _initials(String name) {
   final t = name.trim();
   if (t.isEmpty) return 'U';
@@ -628,7 +735,6 @@ class _LanguageSheet extends StatelessWidget {
   static const _options = [
     _LangOption(locale: Locale('uz'), titleKey: 'lang_uz', iconPath: 'assets/icons/ic_uzbek.png'),
     _LangOption(locale: Locale('ru'), titleKey: 'lang_ru', iconPath: 'assets/icons/ic_russian.png'),
-    _LangOption(locale: Locale('en'), titleKey: 'lang_en', iconPath: 'assets/icons/ic_uk.png'),
   ];
 
   static const _border = Color(0xFFE5E7EB);
@@ -746,12 +852,11 @@ class _LangFlagChip extends StatelessWidget {
   static const _icons = {
     'uz': 'assets/icons/ic_uzbek.png',
     'ru': 'assets/icons/ic_russian.png',
-    'en': 'assets/icons/ic_uk.png',
   };
 
   @override
   Widget build(BuildContext context) {
-    final icon = _icons[locale.languageCode] ?? _icons['en']!;
+    final icon = _icons[locale.languageCode] ?? _icons['uz']!;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

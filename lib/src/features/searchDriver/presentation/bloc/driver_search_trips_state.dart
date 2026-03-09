@@ -15,12 +15,14 @@ final class DriverSearchTripsLoaded extends DriverSearchTripsState {
   final bool actionLoading;
   final String? actionMessage;
   final String? actionError;
+  final bool paginationLoading;
 
   DriverSearchTripsLoaded({
     required this.response,
     this.actionLoading = false,
     this.actionMessage,
     this.actionError,
+    this.paginationLoading = false,
   });
 
   DriverSearchTripsLoaded copyWith({
@@ -28,12 +30,14 @@ final class DriverSearchTripsLoaded extends DriverSearchTripsState {
     bool? actionLoading,
     String? actionMessage,
     String? actionError,
+    bool? paginationLoading,
   }) {
     return DriverSearchTripsLoaded(
       response: response ?? this.response,
       actionLoading: actionLoading ?? this.actionLoading,
       actionMessage: actionMessage,
       actionError: actionError,
+      paginationLoading: paginationLoading ?? this.paginationLoading,
     );
   }
 }

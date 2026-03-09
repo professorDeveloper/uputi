@@ -10,6 +10,7 @@ class AuthState extends Equatable {
   final bool loggedIn;
   final AuthUser? user;
   final String? message;
+  final String? accessToken;
 
   const AuthState({
     required this.loading,
@@ -18,6 +19,7 @@ class AuthState extends Equatable {
     this.user,
     this.message,
     this.loggedIn = false,
+    this.accessToken,
   });
 
   factory AuthState.initial() => const AuthState(loading: false);
@@ -29,6 +31,7 @@ class AuthState extends Equatable {
     Object? verificationId = _unset,
     Object? message = _unset,
     bool? loggedIn,
+    Object? accessToken = _unset,
   }) {
     return AuthState(
       user: user == _unset ? this.user : user as AuthUser?,
@@ -39,9 +42,10 @@ class AuthState extends Equatable {
           : verificationId as String?,
       message: message == _unset ? this.message : message as String?,
       loggedIn: loggedIn ?? this.loggedIn,
+      accessToken: accessToken == _unset ? this.accessToken : accessToken as String?,
     );
   }
 
   @override
-  List<Object?> get props => [loading, error, verificationId, loggedIn, message, user];
+  List<Object?> get props => [loading, error, verificationId, loggedIn, message, user, accessToken];
 }

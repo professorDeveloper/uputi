@@ -9,6 +9,7 @@ import '../../../../../core/constants/app_color.dart';
 import '../../../../../core/constants/app_images.dart';
 import '../../../../../core/constants/app_style.dart';
 import '../../../../../core/router/pages.dart';
+import '../../../../../core/storage/shared_storage.dart';
 import '../../../../../utils/phone_formatter.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_event.dart';
@@ -75,7 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
             prev.loggedIn != curr.loggedIn ||
             prev.verificationId != curr.verificationId,
         listener: (context, state) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
             if (!context.mounted) return;
 
             if (state.error != null) {
@@ -84,7 +85,13 @@ class _LoginScreenState extends State<LoginScreen> {
             }
 
             if (state.loggedIn) {
+              if (state.accessToken != null && state.accessToken!.isNotEmpty) {
+                await Prefs.setAccessToken(state.accessToken!);
+              }
               final role = (state.user?.role ?? "").trim();
+              if (role.isNotEmpty) {
+                await Prefs.setRole(role);
+              }
               final target = role == 'passenger'
                   ? Pages.passengerSHell
                   : role == 'driver'

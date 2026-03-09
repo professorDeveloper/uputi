@@ -17,6 +17,8 @@ final class DriverSearchTripsRequested extends DriverSearchTripsEvent {
   });
 }
 
+final class DriverSearchTripsLoadMoreRequested extends DriverSearchTripsEvent {}
+
 final class DriverSearchCreateBookingRequested extends DriverSearchTripsEvent {
   final int tripId;
 

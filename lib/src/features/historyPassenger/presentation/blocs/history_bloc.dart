@@ -79,10 +79,35 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
       _ => 1,
     };
 
-    add(HistoryFetchFirst(type: currentType));
+    try {
+      final res = await getHistory(GetPassengerHistoryParams(type: currentType, page: 1));
+      final tripsPage = res.trips;
+      emit(HistoryLoaded(
+        type: currentType,
+        items: List<Trip>.from(tripsPage.data),
+        currentPage: tripsPage.currentPage,
+        lastPage: tripsPage.lastPage,
+        isLoadingMore: false,
+      ));
+    } catch (e) {
+      emit(HistoryFailure(type: currentType, message: e.toString()));
+    }
   }
 
   Future<void> _onChangeType(HistoryChangeType event, Emitter<HistoryState> emit) async {
-    add(HistoryFetchFirst(type: event.type));
+    emit(HistoryLoading(type: event.type));
+    try {
+      final res = await getHistory(GetPassengerHistoryParams(type: event.type, page: 1));
+      final tripsPage = res.trips;
+      emit(HistoryLoaded(
+        type: event.type,
+        items: List<Trip>.from(tripsPage.data),
+        currentPage: tripsPage.currentPage,
+        lastPage: tripsPage.lastPage,
+        isLoadingMore: false,
+      ));
+    } catch (e) {
+      emit(HistoryFailure(type: event.type, message: e.toString()));
+    }
   }
 }

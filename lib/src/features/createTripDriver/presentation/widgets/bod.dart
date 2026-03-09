@@ -67,15 +67,22 @@ class _DriverBodyState extends State<_DriverBody> {
       listenWhen: (p, c) => p.status != c.status,
       listener: (context, s) async {
         if (s.status == DriverTripCreateStatus.success) {
-          await _showSuccessFlushbar(context, "Sayohat yaratildi");
+          await _showSuccessFlushbar(context, 'msg_trip_created'.tr());
           if (!context.mounted) return;
           Navigator.of(context).pop(true);
         }
         if (s.status == DriverTripCreateStatus.failure) {
-          await _showErrorFlushbar(
-            context,
-            s.errorMessage ?? "Xatolik yuz berdi",
-          );
+          if (s.insufficientBalance) {
+            await _showErrorFlushbar(
+              context,
+              'balance_insufficient'.tr(),
+            );
+          } else {
+            await _showErrorFlushbar(
+              context,
+              s.errorMessage ?? 'msg_error_occurred'.tr(),
+            );
+          }
         }
       },
       builder: (context, s) {
@@ -173,7 +180,7 @@ class _DriverBodyState extends State<_DriverBody> {
                 ),
                 const SizedBox(height: 12),
                 _SoftSelectField(
-                  label: "Bo'sh o'rinlar",
+                  label: 'sheet_seats'.tr(),
                   value: "${s.seats}",
                   placeholder: 'placeholder_select'.tr(),
                   enabled: !loading,
@@ -203,7 +210,7 @@ class _DriverBodyState extends State<_DriverBody> {
 
                 const SizedBox(height: 18),
 
-                const _SectionTitle("Izoh"),
+                _SectionTitle('trip_comment_title'.tr()),
                 const SizedBox(height: 10),
                 _SoftTextAreaField(
                   label: 'field_comment'.tr(),
@@ -254,7 +261,7 @@ class _DriverBodyState extends State<_DriverBody> {
                       ),
                     ),
                     child: Text(
-                      loading ? "Yaratilmoqda..." : "Sayohat yaratish",
+                      loading ? 'btn_creating'.tr() : 'btn_create_trip'.tr(),
                     ),
                   ),
                 ),
@@ -853,7 +860,7 @@ Future<int?> _pickSeatsBottomSheet(
     clipBehavior: Clip.antiAlias,
     builder: (ctx) {
       return _WhiteSheetShell(
-        title: "Bo'sh o'rinlar",
+        title: 'sheet_seats'.tr(),
         onDone: () => Navigator.pop(ctx, temp),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),

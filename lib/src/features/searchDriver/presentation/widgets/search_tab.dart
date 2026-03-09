@@ -1,13 +1,16 @@
 // lib/src/features/searchDriver/presentation/screens/driver_city_search_tab.dart
 
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:easy_localization/easy_localization.dart' as locale;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'package:uputi/src/helpers/flushbar.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_color.dart';
 import '../../../searchPassenger/data/models/search_city_trip_response.dart';
@@ -25,6 +28,9 @@ class _DriverCitySearchTabState extends State<DriverCitySearchTab> {
   static const double _defaultLat = 41.311081;
   static const double _defaultLng = 69.240562;
 
+  // Map scroll to'xtagandan keyin qancha vaqt kutish (ms)
+  static const int _scrollIdleDelayMs = 800;
+
   mapbox.MapboxMap? _map;
   mapbox.PointAnnotationManager? _mgr;
 
@@ -32,6 +38,12 @@ class _DriverCitySearchTabState extends State<DriverCitySearchTab> {
   double _lastLng = _defaultLng;
 
   bool _booted = false;
+
+  /// Map hozir scroll bo'lyaptimi
+  bool _isMapScrolling = false;
+
+  /// Scroll to'xtaganidan keyin fetch qilish uchun timer
+  Timer? _scrollIdleTimer;
 
   final Map<String, CityTripItem> _annTrip = {};
   Uint8List? _personMarkerBytes;
@@ -47,6 +59,7 @@ class _DriverCitySearchTabState extends State<DriverCitySearchTab> {
 
   @override
   void dispose() {
+    _scrollIdleTimer?.cancel();
     try {
       _mgr?.deleteAll();
     } catch (_) {}
@@ -102,6 +115,49 @@ class _DriverCitySearchTabState extends State<DriverCitySearchTab> {
     );
 
     await _moveCamera(lat: _lastLat, lng: _lastLng, zoom: 10.8);
+  }
+
+  /// Kamera har harakat qilganda chaqiriladi
+  void _onCameraChanged(mapbox.CameraChangedEventData event) {
+    if (!_isMapScrolling) {
+      if (mounted) setState(() => _isMapScrolling = true);
+    }
+
+    _scrollIdleTimer?.cancel();
+
+    // Scroll to'xtab, idle bo'lgandan keyin fetch qilamiz
+    _scrollIdleTimer = Timer(
+      const Duration(milliseconds: _scrollIdleDelayMs),
+      _onScrollIdle,
+    );
+  }
+
+  /// Map scroll to'xtagandan keyin chaqiriladi
+  Future<void> _onScrollIdle() async {
+    final map = _map;
+    if (map == null || !mounted) return;
+
+    // Ekran markazidagi koordinatani olamiz
+    try {
+      final cameraState = await map.getCameraState();
+      final center = cameraState.center;
+
+      // mapbox.Point dan lat/lng ni olamiz
+      final lat = center.coordinates.lat.toDouble();
+      final lng = center.coordinates.lng.toDouble();
+
+      _lastLat = lat;
+      _lastLng = lng;
+
+      if (mounted) {
+        setState(() => _isMapScrolling = false);
+        context.read<DriverCitySearchBloc>().add(
+          DriverCitySearchRequested(lat: lat, lng: lng),
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isMapScrolling = false);
+    }
   }
 
   Future<void> _moveCamera({
@@ -197,7 +253,7 @@ class _DriverCitySearchTabState extends State<DriverCitySearchTab> {
 
                   final tripId = int.tryParse('${t.id}');
                   if (tripId == null) {
-                    showErrorFlushBar("Trip id noto'g'ri").show(parentContext);
+                    showErrorFlushBar('trip_invalid_id'.tr()).show(parentContext);
                     return;
                   }
 
@@ -257,10 +313,12 @@ class _DriverCitySearchTabState extends State<DriverCitySearchTab> {
 
           return Stack(
             children: [
+              // ── Mapbox map ───────────────────────────────────────────────
               mapbox.MapWidget(
                 key: const ValueKey("driver_city_map"),
                 styleUri: mapbox.MapboxStyles.MAPBOX_STREETS,
                 onMapCreated: _onMapCreated,
+                onCameraChangeListener: _onCameraChanged,
                 cameraOptions: mapbox.CameraOptions(
                   center: mapbox.Point(
                     coordinates: mapbox.Position(_lastLng, _lastLat),
@@ -270,18 +328,25 @@ class _DriverCitySearchTabState extends State<DriverCitySearchTab> {
                   bearing: 0,
                 ),
               ),
+
+              // ── Yuqori info karta ────────────────────────────────────────
               Positioned(
                 left: 12,
                 right: 12,
                 top: 12,
                 child: _TopCard(
-                  title: "Shahar ichida",
-                  subtitle: tripsCount == null
-                      ? "Joylashuv bo'yicha qidiruv"
-                      : "Topildi: $tripsCount",
-                  onRefresh: loading ? null : _load,
+                  title: 'search_tab_city'.tr(),
+                  subtitle: _isMapScrolling
+                      ? 'search_map_moving'.tr() // "Xarita harakatlanmoqda..."
+                      : tripsCount == null
+                      ? 'search_location_search'.tr()
+                      : 'search_found_count'
+                      .tr(namedArgs: {'count': '$tripsCount'}),
+                  onRefresh: (loading || _isMapScrolling) ? null : _load,
                 ),
               ),
+
+              // ── GPS tugmasi (o'z joylashuvga qaytish) ────────────────────
               Positioned(
                 right: 16,
                 bottom: 18,
@@ -293,16 +358,18 @@ class _DriverCitySearchTabState extends State<DriverCitySearchTab> {
                     highlightElevation: 1,
                     backgroundColor: Colors.white,
                     shape: const CircleBorder(),
-                    onPressed: loading ? null : _load,
+                    onPressed: (loading || _isMapScrolling) ? null : _load,
                     child: Icon(
-                      Icons.location_on_outlined,
+                      Icons.my_location,
                       color: AppColor.blueMain,
                       size: 25,
                     ),
                   ),
                 ),
               ),
-              if (loading)
+
+              // ── Loading indikator ────────────────────────────────────────
+              if (loading && !_isMapScrolling)
                 const Positioned(
                   left: 0,
                   right: 0,
@@ -472,8 +539,13 @@ class _DriverCityTripBottomSheet extends StatelessWidget {
     final seats = (trip.seats ?? '-').toString();
     final amount = trip.amount;
     final price = _money(amount is int ? amount : int.tryParse('$amount') ?? 0);
-    final name = (trip.user?.name ?? "Yo'lovchi").trim();
+    final name = (trip.user?.name ?? 'sheet_passenger_label'.tr()).trim();
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'Y';
+
+    final fromLat = double.tryParse((trip.fromLat ?? '').trim());
+    final fromLng = double.tryParse((trip.fromLng ?? '').trim());
+    final toLat = double.tryParse((trip.toLat ?? '').trim());
+    final toLng = double.tryParse((trip.toLng ?? '').trim());
 
     return SafeArea(
       top: false,
@@ -515,25 +587,39 @@ class _DriverCityTripBottomSheet extends StatelessWidget {
               const SizedBox(height: 8),
 
               _SheetInfoRow(
-                label: "Qayerdan",
+                label: 'sheet_from_label'.tr(),
                 value: from,
                 icon: Icons.location_on,
+                onTap: (fromLat != null && fromLng != null)
+                    ? () => _openDirectionTo(fromLat, fromLng)
+                    : null,
               ),
               const SizedBox(height: 10),
-              _SheetInfoRow(label: "Qayerga", value: to, icon: Icons.flag),
+              _SheetInfoRow(
+                label: 'sheet_to_label'.tr(),
+                value: to,
+                icon: Icons.flag,
+                onTap: (toLat != null && toLng != null)
+                    ? () => _openDirectionTo(toLat, toLng)
+                    : null,
+              ),
               const SizedBox(height: 14),
 
               Row(
                 children: [
                   Expanded(
                     child: _SheetInfoTile(
-                      label: "Sana", value: date, icon: Icons.calendar_today,
+                      label: 'sheet_date_label'.tr(),
+                      value: date,
+                      icon: Icons.calendar_today,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: _SheetInfoTile(
-                      label: "Vaqt", value: time, icon: Icons.access_time,
+                      label: 'sheet_time_label'.tr(),
+                      value: time,
+                      icon: Icons.access_time,
                     ),
                   ),
                 ],
@@ -543,7 +629,7 @@ class _DriverCityTripBottomSheet extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _SheetInfoTile(
-                      label: "O'rinlar",
+                      label: 'sheet_seats_label'.tr(),
                       value: seats,
                       icon: Icons.people_alt_outlined,
                     ),
@@ -551,7 +637,7 @@ class _DriverCityTripBottomSheet extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _SheetInfoTile(
-                      label: "Narx",
+                      label: 'sheet_price_label'.tr(),
                       value: price,
                       icon: Icons.payments_outlined,
                     ),
@@ -560,7 +646,6 @@ class _DriverCityTripBottomSheet extends StatelessWidget {
               ),
               const SizedBox(height: 14),
 
-              // Yo'lovchi info
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
@@ -585,7 +670,7 @@ class _DriverCityTripBottomSheet extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        name.isEmpty ? "Yo'lovchi" : name,
+                        name.isEmpty ? 'sheet_passenger_label'.tr() : name,
                         style: const TextStyle(
                           fontSize: 15.5,
                           fontWeight: FontWeight.w600,
@@ -598,7 +683,6 @@ class _DriverCityTripBottomSheet extends StatelessWidget {
               ),
               const SizedBox(height: 14),
 
-              // Faqat Qabul qilish — taklif yo'q
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -614,9 +698,10 @@ class _DriverCityTripBottomSheet extends StatelessWidget {
                     ),
                   )
                       : const Icon(Icons.check_circle_outline),
-                  label: const Text(
-                    "Qabul qilish",
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  label: Text(
+                    'sheet_accept_btn'.tr(),
+                    style:
+                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                   style: ElevatedButton.styleFrom(
                     elevation: 0,
@@ -636,6 +721,22 @@ class _DriverCityTripBottomSheet extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _openDirectionTo(double destLat, double destLng) async {
+    final yandex = Uri.parse(
+      'yandexmaps://maps.yandex.ru/?rtext=~$destLat,$destLng&rtt=auto',
+    );
+    if (await canLaunchUrl(yandex)) {
+      await launchUrl(yandex, mode: LaunchMode.externalApplication);
+      return;
+    }
+    final google = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=$destLat,$destLng&travelmode=driving',
+    );
+    if (await canLaunchUrl(google)) {
+      await launchUrl(google, mode: LaunchMode.externalApplication);
+    }
   }
 
   String _shortTime(String t) {
@@ -662,40 +763,52 @@ class _SheetInfoRow extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
+  final VoidCallback? onTap;
 
   const _SheetInfoRow({
     required this.label,
     required this.value,
     required this.icon,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 20, color: const Color(0xFF6B7280)),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: const TextStyle(
-                      color: Color(0xFF6B7280), fontSize: 12)),
-              const SizedBox(height: 2),
-              Text(value,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF111827),
-                  )),
-            ],
+    final tappable = onTap != null;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: const Color(0xFF6B7280)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: const TextStyle(
+                        color: Color(0xFF6B7280), fontSize: 12)),
+                const SizedBox(height: 2),
+                Text(value,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF111827),
+                      decoration: tappable ? TextDecoration.underline : null,
+                      decorationColor: const Color(0xFF9CA3AF),
+                    )),
+              ],
+            ),
           ),
-        ),
-      ],
+          if (tappable)
+            const Icon(Icons.near_me_outlined,
+                size: 16, color: Color(0xFF9CA3AF)),
+        ],
+      ),
     );
   }
 }

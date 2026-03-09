@@ -9,7 +9,7 @@ class SearchRegionTripResponse {
   factory SearchRegionTripResponse.empty() {
     return SearchRegionTripResponse(
       items: const [],
-      pagination: PaginationModel(current: 0, previous: 0, next: 0, total: 0),
+      pagination: PaginationModel(current: 0, previous: null, next: null, total: 0),
     );
   }
 
@@ -18,9 +18,9 @@ class SearchRegionTripResponse {
     return SearchRegionTripResponse(
       items: itemsJson is List
           ? itemsJson
-                .whereType<Map<String, dynamic>>()
-                .map((e) => DriverTripModel.fromJson(e))
-                .toList()
+          .whereType<Map<String, dynamic>>()
+          .map((e) => DriverTripModel.fromJson(e))
+          .toList()
           : <DriverTripModel>[],
       pagination: PaginationModel.fromJson(
         json['pagination'] as Map<String, dynamic>? ?? {},
@@ -32,7 +32,7 @@ class SearchRegionTripResponse {
 class PaginationModel {
   final int? current;
   final int? previous;
-  final int? next;
+  final String? next; // API returns a full URL string, not an int
   final int? total;
 
   PaginationModel({
@@ -42,11 +42,20 @@ class PaginationModel {
     required this.total,
   });
 
+  bool get hasNextPage => next != null && next!.isNotEmpty;
+
+  int? get nextPage {
+    if (next == null) return null;
+    final uri = Uri.tryParse(next!);
+    final pageStr = uri?.queryParameters['page'];
+    return pageStr != null ? int.tryParse(pageStr) : null;
+  }
+
   factory PaginationModel.fromJson(Map<String, dynamic> json) {
     return PaginationModel(
       current: json['current'] as int?,
-      previous: json['previous'] as int?,
-      next: json['next'] as int?,
+      previous: json['previous'] is int ? json['previous'] as int? : null,
+      next: json['next'] as String?,
       total: json['total'] as int?,
     );
   }

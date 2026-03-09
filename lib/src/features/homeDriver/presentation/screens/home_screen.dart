@@ -12,16 +12,20 @@ import '../../../../../main.dart';
 import '../../../../core/constants/app_color.dart';
 import '../../../../core/router/pages.dart';
 import '../../../../core/storage/shared_storage.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:uputi/src/features/homePassenger/presentation/widgets/home_appbar.dart';
 import 'package:uputi/src/features/homePassenger/presentation/widgets/telegram_dialog.dart';
 
 import '../bloc/home_bloc.dart';
+import '../widgets/shimmer_widgets.dart';
 import '../bloc/home_event.dart';
 import '../bloc/home_state.dart';
 import '../widgets/list_items.dart';
 
 class HomeDriverScreen extends StatefulWidget {
-  const HomeDriverScreen({super.key});
+  final ValueNotifier<bool> isVisible;
+
+  const HomeDriverScreen({super.key, required this.isVisible});
 
   @override
   State<HomeDriverScreen> createState() => _HomeDriverScreenState();
@@ -30,9 +34,9 @@ class HomeDriverScreen extends StatefulWidget {
 class _HomeDriverScreenState extends State<HomeDriverScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver, RouteAware {
   static const Duration _pollInterval = Duration(seconds: 10);
-
   bool _routeSubbed = false;
   late final TabController _tabController;
+  final ScrollController _scrollController = ScrollController();
   int _tabIndex = 0;
 
   bool _isTelegramDialogOpen = false;
@@ -67,11 +71,29 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
       }
     });
 
+    _scrollController.addListener(_onScroll);
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       context.read<HomeDriverBloc>().add(HomeDriverInit());
       if (mounted) setState(() => _booted = true);
-      _startPolling();
     });
+
+    widget.isVisible.addListener(_onVisibilityChanged);
+  }
+
+  void _onVisibilityChanged() {
+    if (!mounted) return;
+    if (widget.isVisible.value) {
+      _startPolling();
+      final bloc = context.read<HomeDriverBloc>();
+      if (_tabIndex == 1) {
+        bloc.add(DriverRefreshMyTripsPressed());
+      } else {
+        bloc.add(HomeDriverSilentRefresh());
+      }
+    } else {
+      _stopPolling();
+    }
   }
 
   @override
@@ -85,8 +107,19 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
     }
   }
 
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 220) {
+      context.read<HomeDriverBloc>().add(LoadMoreActiveTrips());
+    }
+  }
+
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    widget.isVisible.removeListener(_onVisibilityChanged);
     routeObserver.unsubscribe(this);
     _stopPolling();
     _stopTelegramBurstCheck();
@@ -96,10 +129,12 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
   }
 
   @override
-  void didPush() => _startPolling();
-
-  @override
-  void didPopNext() => _startPolling();
+  void didPopNext() {
+    if (!widget.isVisible.value) return;
+    _startPolling();
+    if (!mounted) return;
+    context.read<HomeDriverBloc>().add(HomeDriverSilentRefresh());
+  }
 
   @override
   void didPushNext() => _stopPolling();
@@ -114,11 +149,9 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
 
     if (state == AppLifecycleState.resumed) {
       if (!isCurrent) return;
+      if (!widget.isVisible.value) return;
       _startPolling();
       context.read<HomeDriverBloc>().add(HomeDriverSilentRefresh());
-      if (_tabIndex == 1) {
-        context.read<HomeDriverBloc>().add(DriverMyTripsTabOpened());
-      }
       if (_isTelegramDialogOpen) _startTelegramBurstCheck();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
@@ -128,9 +161,20 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
   }
 
   void _startPolling() {
+    if (!widget.isVisible.value) return;
+
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(_pollInterval, (_) {
-      if (!mounted) return;
+      if (!mounted) {
+        _stopPolling();
+        return;
+      }
+      // IndexedStack da isCurrent har doim true bo'ladi,
+      // shuning uchun isVisible ni ishlatamiz
+      if (!widget.isVisible.value) {
+        _stopPolling();
+        return;
+      }
       context.read<HomeDriverBloc>().add(HomeDriverSilentRefresh());
     });
   }
@@ -151,22 +195,24 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
   }
 
   void _showMessages(BuildContext context, HomeDriverLoaded s) {
-    final msg = s.cancelMessage ??
-        s.createMessage ??
-        s.completeMessage ??
-        s.acceptMessage ??
-        s.rejectMessage;
+    final msg =
+        s.cancelMessage ??
+            s.createMessage ??
+            s.completeMessage ??
+            s.acceptMessage ??
+            s.rejectMessage;
     if (msg != null && msg.isNotEmpty) {
       (msg.startsWith("Exception")
           ? showErrorFlushBar(msg)
           : showSuccessFlushBar(msg))
           .show(context);
     }
-    final err = s.cancelError ??
-        s.createError ??
-        s.completeError ??
-        s.acceptError ??
-        s.rejectError;
+    final err =
+        s.cancelError ??
+            s.createError ??
+            s.completeError ??
+            s.acceptError ??
+            s.rejectError;
     if (err != null && err.isNotEmpty) {
       showErrorFlushBar(err).show(context);
     }
@@ -232,6 +278,25 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
     _tgBurstAttempt = 0;
   }
 
+  Future<void> _showLanguageSheet() async {
+    final current = context.locale;
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => _LanguageSheet(
+        current: current,
+        onPick: (locale) async {
+          Navigator.of(ctx).pop();
+          await context.setLocale(locale);
+          if (mounted) setState(() {});
+        },
+      ),
+    );
+  }
+
   Widget _topTabBar() {
     return Material(
       color: Colors.white,
@@ -259,7 +324,8 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
           ),
           tabs: [
             Tab(text: 'home_tab_bookings'.tr()),
-            Tab(text: 'home_tab_orders'.tr()),
+            Tab(text
+                : 'home_tab_orders'.tr()),
           ],
         ),
       ),
@@ -277,19 +343,18 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
           )
         else
           ...data.inProgress.map(
-                (b) => TripCard.booking(
-              b,
+                (b) => TripCard.booking(b,
                   (bookingId) {
                 if (data.isCancelLoading) return;
-                context
-                    .read<HomeDriverBloc>()
-                    .add(DriverCancelBookingPressed(bookingId: bookingId));
+                context.read<HomeDriverBloc>().add(
+                  DriverCancelBookingPressed(bookingId: bookingId),
+                );
               },
                   (tripId) {
                 if (data.isCompleteLoading) return;
-                context
-                    .read<HomeDriverBloc>()
-                    .add(DriverCompleteTripPressed(tripId: tripId));
+                context.read<HomeDriverBloc>().add(
+                  DriverCompleteMyBookingTripPressed(tripId: tripId),
+                );
               },
             ),
           ),
@@ -313,13 +378,12 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(data.myTripsError!,
-                style: const TextStyle(color: Colors.red)),
+            Text(data.myTripsError!, style: const TextStyle(color: Colors.red)),
             const SizedBox(height: 8),
             ElevatedButton(
-              onPressed: () => context
-                  .read<HomeDriverBloc>()
-                  .add(DriverRefreshMyTripsPressed()),
+              onPressed: () => context.read<HomeDriverBloc>().add(
+                DriverRefreshMyTripsPressed(),
+              ),
               child: Text('btn_retry'.tr()),
             ),
           ],
@@ -332,7 +396,7 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
     }
 
     if (data.myTrips.isEmpty) {
-      return  Padding(
+      return Padding(
         key: ValueKey('my_trips_empty'),
         padding: EdgeInsets.only(top: 24),
         child: Center(child: Text('home_no_trips'.tr())),
@@ -348,22 +412,20 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
             t,
                 (tripId) {
               if (data.isCompleteLoading) return;
-              context
-                  .read<HomeDriverBloc>()
-                  .add(DriverCompleteTripPressed(tripId: tripId));
+              context.read<HomeDriverBloc>().add(
+                DriverCompleteTripPressed(tripId: tripId),
+              );
             },
             onAcceptBooking: (bookingId) {
               if (data.isAcceptLoading) return;
               context.read<HomeDriverBloc>().add(
-                DriverAcceptIncomingBookingPressed(
-                    bookingId: bookingId),
+                DriverAcceptIncomingBookingPressed(bookingId: bookingId),
               );
             },
             onRejectBooking: (bookingId) {
               if (data.isRejectLoading) return;
               context.read<HomeDriverBloc>().add(
-                DriverRejectIncomingBookingPressed(
-                    bookingId: bookingId),
+                DriverRejectIncomingBookingPressed(bookingId: bookingId),
               );
             },
           ),
@@ -381,12 +443,22 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
         return prev.user.balance != curr.user.balance;
       },
       builder: (_, appBarState) {
-        final bal = appBarState is HomeDriverLoaded ? (appBarState.user.balance ?? 0) : 0;
+        final bal = appBarState is HomeDriverLoaded
+            ? (appBarState.user.balance ?? 0)
+            : 0;
         final appBarBalance = _fmtBalance(bal);
         return Scaffold(
           appBar: UPuttiHomeAppBar(
             logoAsset: AppImages.logo,
             balance: appBarBalance,
+            locale: context.locale,
+            onLanguageTap: _showLanguageSheet,
+            onBalanceTap: () async {
+              final uri = Uri.parse('https://t.me/Uputi_balance');
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
           ),
           backgroundColor: const Color(0xFFF5F7FB),
           body: MultiBlocListener(
@@ -394,6 +466,11 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
               BlocListener<HomeDriverBloc, HomeDriverState>(
                 listenWhen: (_, curr) => curr is HomeDriverUnauthorized,
                 listener: (_, __) => _logout(),
+              ),
+              BlocListener<HomeDriverBloc, HomeDriverState>(
+                listenWhen: (prev, curr) =>
+                prev is! HomeDriverLoaded && curr is HomeDriverLoaded,
+                listener: (_, __) => _startPolling(),
               ),
               BlocListener<HomeDriverBloc, HomeDriverState>(
                 listenWhen: (prev, curr) {
@@ -448,21 +525,36 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
                 }
 
                 if (state is HomeDriverLoading || state is HomeDriverInitial) {
-                  return const SizedBox.shrink();
+                  return const HomeShimmerList();
                 }
 
                 final data = state as HomeDriverLoaded;
 
                 return RefreshIndicator(
                   onRefresh: () async {
+                    _stopPolling();
                     final bloc = context.read<HomeDriverBloc>();
                     final completer = Completer<void>();
 
+                    // Event yuborishdan OLDIN stream'ni boshlash
+                    // va loading boshlangach tugashini kuzatish
+                    bool loadingStarted = false;
                     StreamSubscription? sub;
                     sub = bloc.stream.listen((s) {
-                      if (s is HomeDriverLoaded &&
-                          !s.isMyTripsLoading &&
-                          !s.isTripsLoadingMore) {
+                      if (s is! HomeDriverLoaded) return;
+                      if (_tabIndex == 1) {
+                        if (s.isMyTripsLoading) {
+                          loadingStarted = true;
+                          return;
+                        }
+                        // loading boshlangan bo'lsa yoki hech qachon true bo'lmagan
+                        // bo'lsa ham complete qilamiz
+                        if (loadingStarted || !s.isMyTripsLoading) {
+                          sub?.cancel();
+                          if (!completer.isCompleted) completer.complete();
+                        }
+                      } else {
+                        if (s.isTripsLoadingMore) return;
                         sub?.cancel();
                         if (!completer.isCompleted) completer.complete();
                       }
@@ -475,12 +567,14 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
                     }
 
                     await completer.future.timeout(
-                      const Duration(seconds: 8),
+                      const Duration(seconds: 10),
                       onTimeout: () {},
                     );
                     sub.cancel();
+                    _startPolling();
                   },
                   child: ListView(
+                    controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
                     children: [
@@ -499,7 +593,8 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
                             (t) => TripCard.passengerTrip(t, () {
                           if (data.isCreateLoading) return;
                           context.read<HomeDriverBloc>().add(
-                              DriverCreateBookingRequested(tripId: t.id));
+                            DriverCreateBookingRequested(tripId: t.id),
+                          );
                         }),
                       ),
 
@@ -528,7 +623,6 @@ class _HomeDriverScreenState extends State<HomeDriverScreen>
   }
 }
 
-
 String _fmtBalance(int v) {
   final s = v.toString();
   final b = StringBuffer();
@@ -539,7 +633,6 @@ String _fmtBalance(int v) {
   }
   return '${b.toString()} UZS';
 }
-
 
 class _SectionTitle extends StatelessWidget {
   final String text;
@@ -553,6 +646,58 @@ class _SectionTitle extends StatelessWidget {
         fontSize: 16.5,
         fontWeight: FontWeight.w600,
         color: Color(0xFF111827),
+      ),
+    );
+  }
+}
+
+class _LanguageSheet extends StatelessWidget {
+  const _LanguageSheet({required this.current, required this.onPick});
+  final Locale current;
+  final void Function(Locale) onPick;
+
+  static const _options = [
+    (locale: Locale('uz'), titleKey: 'lang_uz', icon: 'assets/icons/ic_uzbek.png'),
+    (locale: Locale('ru'), titleKey: 'lang_ru', icon: 'assets/icons/ic_russian.png'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 10),
+          Container(width: 44, height: 5, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(100))),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Align(alignment: Alignment.centerLeft, child: Text('profile_language_title'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF111827)))),
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          for (final o in _options) ...[
+            InkWell(
+              onTap: () => onPick(o.locale),
+              child: SizedBox(
+                height: 56,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      ClipRRect(borderRadius: BorderRadius.circular(6), child: Image.asset(o.icon, width: 28, height: 20, fit: BoxFit.cover)),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(o.titleKey.tr(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF111827)))),
+                      if (o.locale.languageCode == current.languageCode) const Icon(Icons.check, size: 20, color: Color(0xFF111827)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          ],
+          const SizedBox(height: 10),
+        ],
       ),
     );
   }

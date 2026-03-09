@@ -6,7 +6,9 @@ abstract class SearchPassengerRepository {
   Future<SearchRegionTripResponse> searchTrips({
     required String from,
     required String to,
-    String? date, // optional
+    String? date, // optiona// l
+    int? page, // optiona// l
+
   });
 
   Future<CityLocationSearchResponse> searchByCity({

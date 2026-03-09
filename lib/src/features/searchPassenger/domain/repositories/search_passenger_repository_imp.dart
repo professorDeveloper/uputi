@@ -10,18 +10,19 @@ class SearchPassengerRepositoryImp implements SearchPassengerRepository {
   final CityTripsRemoteDataSource cityTripsRemoteDataSource;
 
   SearchPassengerRepositoryImp(
-    this.remoteDataSource,
-    this.cityTripsRemoteDataSource,
-  );
+      this.remoteDataSource,
+      this.cityTripsRemoteDataSource,
+      );
 
   @override
   Future<SearchRegionTripResponse> searchTrips({
     required String from,
     required String to,
     String? date,
+    int? page,
   }) async {
     try {
-      return await remoteDataSource.searchTrips(from: from, to: to, date: date);
+      return await remoteDataSource.searchTrips(from: from, to: to, date: date, page: page);
     } catch (e) {
       rethrow;
     }

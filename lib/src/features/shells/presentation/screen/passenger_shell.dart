@@ -26,30 +26,38 @@ class _PassengerShellState extends State<PassengerShell> {
   int index = 0;
 
   late final HomePassengerBloc _homeBloc;
+  late final HistoryBloc _historyBloc;
+  late final ProfileBloc _profileBloc;
+  final ValueNotifier<bool> _homeVisible = ValueNotifier<bool>(true);
 
   late final List<Widget> pages;
+
+  bool _historyLoaded = false;
+  bool _profileLoaded = false;
 
   @override
   void initState() {
     super.initState();
 
     _homeBloc = sl<HomePassengerBloc>();
+    _historyBloc = sl<HistoryBloc>();
+    _profileBloc = sl<ProfileBloc>();
 
     pages = [
       BlocProvider.value(
         value: _homeBloc,
-        child: const HomePassengerScreen(),
+        child: HomePassengerScreen(isVisible: _homeVisible),
       ),
       BlocProvider(
         create: (_) => sl<SearchTripsBloc>(),
         child: const SearchPassengersScreen(),
       ),
-      BlocProvider(
-        create: (_) => sl<HistoryBloc>(),
+      BlocProvider.value(
+        value: _historyBloc,
         child: const PassengersHistoryScreen(),
       ),
-      BlocProvider(
-        create: (_) => sl<ProfileBloc>(),
+      BlocProvider.value(
+        value: _profileBloc,
         child: const PassengersProfileScreen(),
       ),
     ];
@@ -57,7 +65,10 @@ class _PassengerShellState extends State<PassengerShell> {
 
   @override
   void dispose() {
+    _homeVisible.dispose();
     _homeBloc.close();
+    _historyBloc.close();
+    _profileBloc.close();
     super.dispose();
   }
 
@@ -65,7 +76,7 @@ class _PassengerShellState extends State<PassengerShell> {
     final res = await Navigator.pushNamed(context, Pages.createTrip);
     if (!mounted) return;
     setState(() => index = 0);
-    _homeBloc.add(RefreshMyTripsPressed());
+    // didPopNext HomePassengerScreen da refresh qiladi
   }
 
   @override
@@ -89,26 +100,46 @@ class _PassengerShellState extends State<PassengerShell> {
                 icon: Icons.home,
                 label: 'nav_home'.tr(),
                 selected: index == 0,
-                onTap: () => setState(() => index = 0),
+                onTap: () {
+                  setState(() => index = 0);
+                  _homeVisible.value = true;
+                },
               ),
               _NavItem(
                 icon: Icons.search,
                 label: 'nav_search'.tr(),
                 selected: index == 1,
-                onTap: () => setState(() => index = 1),
+                onTap: () {
+                  setState(() => index = 1);
+                  _homeVisible.value = false;
+                },
               ),
               const SizedBox(width: 40),
               _NavItem(
                 icon: Icons.history,
                 label: 'nav_history'.tr(),
                 selected: index == 2,
-                onTap: () => setState(() => index = 2),
+                onTap: () {
+                  setState(() => index = 2);
+                  _homeVisible.value = false;
+                  if (!_historyLoaded) {
+                    _historyLoaded = true;
+                    _historyBloc.add(HistoryFetchFirst(type: 1));
+                  }
+                },
               ),
               _NavItem(
                 icon: Icons.person,
                 label: 'nav_profile'.tr(),
                 selected: index == 3,
-                onTap: () => setState(() => index = 3),
+                onTap: () {
+                  setState(() => index = 3);
+                  _homeVisible.value = false;
+                  if (!_profileLoaded) {
+                    _profileLoaded = true;
+                    _profileBloc.add(const ProfileFetch());
+                  }
+                },
               ),
             ],
           ),

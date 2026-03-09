@@ -41,10 +41,6 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen>
       _scrollToTopDeferred();
       context.read<DriverHistoryBloc>().add(DriverHistoryChangeType(type: nextType));
     });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<DriverHistoryBloc>().add(DriverHistoryFetchFirst(type: 1));
-    });
   }
 
   void _onScroll() {
@@ -826,7 +822,7 @@ class HistoryFormat {
       buf.write(s[i]);
       if (fromEnd > 1 && fromEnd % 3 == 1) buf.write(' ');
     }
-    return "${buf.toString()} so'm";
+    return "${buf.toString()} ${'currency_som'.tr()}";
   }
 
   static String initials(String name) {

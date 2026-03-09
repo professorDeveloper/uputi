@@ -19,7 +19,6 @@ class _ChooseLanguageScreenState extends State<ChooseLanguageScreen> {
   static const List<_LangOption> _options = <_LangOption>[
     _LangOption(locale: Locale('uz'), titleKey: 'lang_uz', iconPath: 'assets/icons/ic_uzbek.png'),
     _LangOption(locale: Locale('ru'), titleKey: 'lang_ru', iconPath: 'assets/icons/ic_russian.png'),
-    _LangOption(locale: Locale('en'), titleKey: 'lang_en', iconPath: 'assets/icons/ic_uk.png'),
   ];
 
   @override

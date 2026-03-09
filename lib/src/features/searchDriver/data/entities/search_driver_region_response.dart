@@ -11,8 +11,8 @@ class SearchDriverRegionResponse {
       items: const [],
       pagination: DriverSearchPagination(
         current: 0,
-        previous: 0,
-        next: 0,
+        previous: null,
+        next: null,
         total: 0,
       ),
     );
@@ -23,9 +23,9 @@ class SearchDriverRegionResponse {
     return SearchDriverRegionResponse(
       items: itemsJson is List
           ? itemsJson
-                .whereType<Map<String, dynamic>>()
-                .map((e) => PassengerTripModel.fromJson(e))
-                .toList()
+          .whereType<Map<String, dynamic>>()
+          .map((e) => PassengerTripModel.fromJson(e))
+          .toList()
           : <PassengerTripModel>[],
       pagination: DriverSearchPagination.fromJson(
         json['pagination'] as Map<String, dynamic>? ?? {},
@@ -37,7 +37,7 @@ class SearchDriverRegionResponse {
 class DriverSearchPagination {
   final int? current;
   final int? previous;
-  final int? next;
+  final String? next;
   final int? total;
 
   DriverSearchPagination({
@@ -47,11 +47,20 @@ class DriverSearchPagination {
     required this.total,
   });
 
+  bool get hasNextPage => next != null && next!.isNotEmpty;
+
+  int? get nextPage {
+    if (next == null) return null;
+    final uri = Uri.tryParse(next!);
+    final pageStr = uri?.queryParameters['page'];
+    return pageStr != null ? int.tryParse(pageStr) : null;
+  }
+
   factory DriverSearchPagination.fromJson(Map<String, dynamic> json) {
     return DriverSearchPagination(
       current: json['current'] as int?,
-      previous: json['previous'] as int?,
-      next: json['next'] as int?,
+      previous: json['previous'] is int ? json['previous'] as int? : null,
+      next: json['next'] as String?,
       total: json['total'] as int?,
     );
   }

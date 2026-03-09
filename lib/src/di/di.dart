@@ -16,6 +16,7 @@ import 'package:uputi/src/features/homeDriver/data/datasource/reject_booking_dat
 import 'package:uputi/src/features/homeDriver/domain/ds/accept_booking_datasource.dart';
 import 'package:uputi/src/features/homeDriver/domain/ds/reject_booking_datasource.dart';
 import 'package:uputi/src/features/homeDriver/domain/usecase/accept_booking_usecase.dart';
+import 'package:uputi/src/features/homeDriver/domain/usecase/complete_my_bookings_trip_usecase.dart';
 import 'package:uputi/src/features/homeDriver/domain/usecase/get_active_trips_usecase.dart';
 import 'package:uputi/src/features/homeDriver/domain/usecase/reject_booking_usecase.dart';
 import 'package:uputi/src/features/homePassenger/data/datasources/cancel_trip_data_source.dart';
@@ -125,7 +126,6 @@ final sl = GetIt.instance;
 Future<void> setupDI() async {
   sl.registerLazySingleton<Dio>(() {
     var create = DioClient.create();
-    create.interceptors.add(ChuckerDioInterceptor());
     return create;
   });
 
@@ -403,6 +403,9 @@ Future<void> setupDI() async {
     () => GetDriverMyTripsUseCase(sl<HomeDriverRepository>()),
   );
 
+  sl.registerLazySingleton<CompleteMyBookingsTripUsecase>(
+    () => CompleteMyBookingsTripUsecase(sl<HomeDriverRepository>()),
+  );
   sl.registerFactory<HomeDriverBloc>(
     () => HomeDriverBloc(
       getUser: sl<GetDriverUserUseCase>(),
@@ -414,6 +417,7 @@ Future<void> setupDI() async {
       getMyTrips: sl<GetDriverMyTripsUseCase>(),
       acceptBooking: sl<AcceptDriverBookingUseCase>(),
       rejectBooking: sl<RejectDriverBookingUseCase>(),
+      completeMyBookingsTripUsecase: sl<CompleteMyBookingsTripUsecase>(),
     ),
   );
 

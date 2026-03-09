@@ -1,6 +1,9 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:map_launcher/map_launcher.dart';
 
+import '../../../../core/constants/app_icons.dart';
 import '../../../../utils/balance_formatter.dart';
 import '../../../../utils/url_launchers.dart';
 import '../../data/model/driver_booking_model.dart';
@@ -10,6 +13,10 @@ import '../../data/model/driver_paggination.dart';
 class TripCard extends StatelessWidget {
   final String from;
   final String to;
+  final double? fromLat;
+  final double? fromLng;
+  final double? toLat;
+  final double? toLng;
   final String date;
   final String time;
   final String price;
@@ -26,6 +33,10 @@ class TripCard extends StatelessWidget {
   const TripCard._({
     required this.from,
     required this.to,
+    this.fromLat,
+    this.fromLng,
+    this.toLat,
+    this.toLng,
     required this.date,
     required this.time,
     required this.price,
@@ -47,6 +58,10 @@ class TripCard extends StatelessWidget {
     return TripCard._(
       from: t.fromAddress,
       to: t.toAddress,
+      fromLat: double.tryParse(t.fromLat ?? ''),
+      fromLng: double.tryParse(t.fromLng ?? ''),
+      toLat: double.tryParse(t.toLat ?? ''),
+      toLng: double.tryParse(t.toLng ?? ''),
       date: t.date,
       time: _safeTime(t.time),
       price: formatPrice(t.amount),
@@ -84,6 +99,10 @@ class TripCard extends StatelessWidget {
     return TripCard._(
       from: trip.fromAddress,
       to: trip.toAddress,
+      fromLat: double.tryParse(trip.fromLat ?? ''),
+      fromLng: double.tryParse(trip.fromLng ?? ''),
+      toLat: double.tryParse(trip.toLat ?? ''),
+      toLng: double.tryParse(trip.toLng ?? ''),
       date: trip.date,
       time: trip.safeTime,
       price: formatPrice(trip.amount),
@@ -276,12 +295,13 @@ class TripCard extends StatelessWidget {
   void _showCommentDialog(BuildContext context, String comment) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      useRootNavigator: false,
+      builder: (dialogContext) => AlertDialog(
         title: Text('trip_comment_title'.tr()),
         content: Text(comment),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text('trip_close'.tr()),
           ),
         ],
@@ -319,7 +339,15 @@ class _TripDetailSheet extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              _RouteBlock(from: card.from, to: card.to),
+              _RouteBlock(
+                from: card.from,
+                to: card.to,
+                fromLat: card.fromLat,
+                fromLng: card.fromLng,
+                toLat: card.toLat,
+                toLng: card.toLng,
+              ),
+
               const SizedBox(height: 14),
 
               Wrap(
@@ -545,7 +573,12 @@ class _MyTripSheet extends StatelessWidget {
               _RouteBlock(
                 from: trip.fromAddress ?? 'trip_unknown'.tr(),
                 to: trip.toAddress ?? 'trip_unknown'.tr(),
+                fromLat: double.tryParse(trip.fromLat ?? ''),
+                fromLng: double.tryParse(trip.fromLng ?? ''),
+                toLat: double.tryParse(trip.toLat ?? ''),
+                toLng: double.tryParse(trip.toLng ?? ''),
               ),
+
               const SizedBox(height: 14),
 
               Wrap(
@@ -557,7 +590,7 @@ class _MyTripSheet extends StatelessWidget {
                       text: trip.date ?? 'trip_unknown'.tr()),
                   _MetaChip(
                       icon: Icons.access_time_rounded, text: trip.safeTime),
-                  if (trip.seats != null)
+                  if (trip.seats != null && (trip.seats ?? 0) > 0)
                     _MetaChip(
                         icon: Icons.event_seat_outlined,
                         text: "${trip.seats} o'rin"),
@@ -573,7 +606,7 @@ class _MyTripSheet extends StatelessWidget {
 
               if (trip.bookings.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                _Label('trip_passengers_label'.tr(namedArgs: {'count': '\${trip.bookings.length}'})),
+                _Label('trip_passengers_label'.tr(namedArgs: {'count': '${trip.bookings.length}'})),
                 const SizedBox(height: 8),
                 ...trip.bookings.map((b) => _BookingRow(
                   booking: b,
@@ -948,52 +981,132 @@ class _ActionBtn extends StatelessWidget {
   }
 }
 
-class _RouteBlock extends StatelessWidget {
+class _RouteBlock extends StatefulWidget {
   final String from;
   final String to;
+  final double? fromLat;
+  final double? fromLng;
+  final double? toLat;
+  final double? toLng;
 
-  const _RouteBlock({required this.from, required this.to});
+  const _RouteBlock({
+    required this.from,
+    required this.to,
+    this.fromLat,
+    this.fromLng,
+    this.toLat,
+    this.toLng,
+  });
+
+  @override
+  State<_RouteBlock> createState() => _RouteBlockState();
+}
+
+class _RouteBlockState extends State<_RouteBlock> {
+  List<AvailableMap> _cachedMaps = [];
+
+  @override
+  void initState() {
+    super.initState();
+    final hasCoords = (widget.fromLat != null && widget.fromLng != null) ||
+        (widget.toLat != null && widget.toLng != null);
+    if (hasCoords) _loadMaps();
+  }
+
+  Future<void> _loadMaps() async {
+    try {
+      final maps = await MapLauncher.installedMaps;
+      if (mounted) setState(() => _cachedMaps = maps);
+    } catch (e) {
+      debugPrint('MapLauncher load error: $e');
+    }
+  }
+
+  Future<void> _openDirectionTo(double destLat, double destLng) async {
+    if (_cachedMaps.isEmpty) return;
+
+    final coords = Coords(destLat, destLng);
+
+    if (_cachedMaps.length == 1) {
+      await _cachedMaps.first.showDirections(destination: coords);
+      return;
+    }
+
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _MapPickerSheet(maps: _cachedMaps, coords: coords),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Icon(Icons.circle, size: 10, color: Color(0xFF22C55E)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                from,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w500),
+        GestureDetector(
+          onTap: (widget.fromLat != null && widget.fromLng != null)
+              ? () => _openDirectionTo(widget.fromLat!, widget.fromLng!)
+              : null,
+          child: Row(
+            children: [
+              const Icon(Icons.circle, size: 10, color: Color(0xFF22C55E)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.from,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    decoration: (widget.fromLat != null && widget.fromLng != null)
+                        ? TextDecoration.underline
+                        : null,
+                    decorationColor: const Color(0xFF9CA3AF),
+                  ),
+                ),
               ),
-            ),
-          ],
+              if (widget.fromLat != null && widget.fromLng != null)
+                const Icon(Icons.near_me_outlined, size: 14, color: Color(0xFF9CA3AF)),
+            ],
+          ),
         ),
         Padding(
           padding: const EdgeInsets.only(left: 4),
-          child: Container(
-              width: 2, height: 10, color: const Color(0xFFD1D5DB)),
+          child: Container(width: 2, height: 10, color: const Color(0xFFD1D5DB)),
         ),
-        Row(
-          children: [
-            const Icon(Icons.location_on_outlined,
-                size: 12, color: Color(0xFFEF4444)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                to,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w500),
+        GestureDetector(
+          onTap: (widget.toLat != null && widget.toLng != null)
+              ? () => _openDirectionTo(widget.toLat!, widget.toLng!)
+              : null,
+          child: Row(
+            children: [
+              const Icon(Icons.location_on_outlined, size: 12, color: Color(0xFFEF4444)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.to,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    decoration: (widget.toLat != null && widget.toLng != null)
+                        ? TextDecoration.underline
+                        : null,
+                    decorationColor: const Color(0xFF9CA3AF),
+                  ),
+                ),
               ),
-            ),
-          ],
+              if (widget.toLat != null && widget.toLng != null)
+                const Icon(Icons.near_me_outlined, size: 14, color: Color(0xFF9CA3AF)),
+            ],
+          ),
         ),
       ],
     );
@@ -1223,6 +1336,7 @@ Color _statusColor(String status) {
   }
 }
 
+
 String _statusLabel(String status) {
   switch (status.toLowerCase()) {
     case 'active':
@@ -1236,5 +1350,148 @@ String _statusLabel(String status) {
       return 'trip_status_cancelled'.tr();
     default:
       return status.isEmpty ? "Noma'lum" : status;
+  }
+}
+
+class _MapPickerSheet extends StatelessWidget {
+  final List<AvailableMap> maps;
+  final Coords coords;
+
+  const _MapPickerSheet({required this.maps, required this.coords});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE5E7EB),
+              borderRadius: BorderRadius.circular(99),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'map_picker_title'.tr(),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6B7280),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1, color: Color(0xFFF3F4F6)),
+          ...maps.asMap().entries.map((entry) {
+            final i = entry.key;
+            final map = entry.value;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _MapOptionTile(
+                  map: map,
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await map.showDirections(destination: coords);
+                  },
+                ),
+                if (i < maps.length - 1)
+                  const Divider(height: 1, indent: 72, color: Color(0xFFF3F4F6)),
+              ],
+            );
+          }),
+          const Divider(height: 1, color: Color(0xFFF3F4F6)),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFFF3F4F6),
+                  foregroundColor: const Color(0xFF374151),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: Text(
+                  'btn_cancel'.tr(),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapOptionTile extends StatelessWidget {
+  final AvailableMap map;
+  final VoidCallback onTap;
+
+  const _MapOptionTile({required this.map, required this.onTap});
+
+  Widget _buildIcon() {
+    if (map.mapType == MapType.yandexMaps || map.mapType == MapType.yandexNavi) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.asset(AppIcons.yandexMap, width: 44, height: 44, fit: BoxFit.cover),
+      );
+    }
+    if (map.mapType == MapType.google) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.asset(AppIcons.googleMap, width: 44, height: 44, fit: BoxFit.cover),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SvgPicture.asset(
+        map.icon,
+        width: 44,
+        height: 44,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          children: [
+            _buildIcon(),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                map.mapName,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF111827),
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Color(0xFFC7C7CC), size: 22),
+          ],
+        ),
+      ),
+    );
   }
 }

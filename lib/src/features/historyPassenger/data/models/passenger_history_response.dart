@@ -4,9 +4,18 @@ class PassengerHistoryResponse {
   PassengerHistoryResponse({required this.trips});
 
   factory PassengerHistoryResponse.fromJson(Map<String, dynamic> json) {
-    final tripsRaw = json['trips'];
+    // type=1 => key: "trips",  data: [ Trip... ]
+    // type=2 => key: "bookings", data: [ { booking fields + "trip": Trip } ]
+    final isBookingResponse =
+        json.containsKey('bookings') && !json.containsKey('trips');
+
+    final raw = (json['bookings'] ?? json['trips']) as Map?;
+    final pageMap = raw?.cast<String, dynamic>() ?? const <String, dynamic>{};
+
     return PassengerHistoryResponse(
-      trips: TripsPage.fromJson((tripsRaw as Map?)?.cast<String, dynamic>() ?? const {}),
+      trips: isBookingResponse
+          ? TripsPage.fromBookingsJson(pageMap)
+          : TripsPage.fromJson(pageMap),
     );
   }
 }
@@ -53,6 +62,68 @@ class TripsPage {
       data: (json['data'] as List? ?? [])
           .map((e) => Trip.fromJson(e as Map<String, dynamic>))
           .toList(),
+      firstPageUrl: json['first_page_url'] as String?,
+      from: json['from'] == null ? null : _asInt(json['from']),
+      lastPage: _asInt(json['last_page']),
+      lastPageUrl: json['last_page_url'] as String?,
+      links: (json['links'] as List? ?? [])
+          .map((e) => PageLink.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      nextPageUrl: json['next_page_url'] as String?,
+      path: json['path'] as String?,
+      perPage: _asInt(json['per_page']),
+      prevPageUrl: json['prev_page_url'] as String?,
+      to: json['to'] == null ? null : _asInt(json['to']),
+      total: _asInt(json['total']),
+    );
+  }
+
+  /// type=2: data elementi Booking, ichida "trip" nested
+  factory TripsPage.fromBookingsJson(Map<String, dynamic> json) {
+    final trips = (json['data'] as List? ?? [])
+        .map((e) {
+          try {
+            final bookingMap = e as Map<String, dynamic>;
+            final tripMap = bookingMap['trip'] as Map<String, dynamic>?;
+            if (tripMap == null) return null;
+
+            // booking ichidagi bookings listini trip ga qo'shamiz
+            final bookingEntry = <String, dynamic>{
+              'id': bookingMap['id'],
+              'trip_id': bookingMap['trip_id'],
+              'user_id': bookingMap['user_id'],
+              'seats': bookingMap['seats'],
+              'offered_price': bookingMap['offered_price'],
+              'comment': bookingMap['comment'],
+              'role': bookingMap['role'],
+              'status': bookingMap['status'],
+              'created_at': bookingMap['created_at'],
+              'updated_at': bookingMap['updated_at'],
+              'user': tripMap['user'],
+            };
+
+            // trip ga bookings qo'shamiz (agar yo'q bo'lsa)
+            final tripWithBookings = Map<String, dynamic>.from(tripMap);
+            if (tripWithBookings['bookings'] == null ||
+                (tripWithBookings['bookings'] as List).isEmpty) {
+              tripWithBookings['bookings'] = [bookingEntry];
+            }
+
+            // booking status ni ishlatamiz
+            tripWithBookings['status'] =
+                bookingMap['status'] ?? tripMap['status'] ?? '';
+
+            return Trip.fromJson(tripWithBookings);
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<Trip>()
+        .toList();
+
+    return TripsPage(
+      currentPage: _asInt(json['current_page']),
+      data: trips,
       firstPageUrl: json['first_page_url'] as String?,
       from: json['from'] == null ? null : _asInt(json['from']),
       lastPage: _asInt(json['last_page']),

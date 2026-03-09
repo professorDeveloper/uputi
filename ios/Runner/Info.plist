@@ -5,11 +5,15 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>LSApplicationQueriesSchemes</key>
-    <string>tel</string>
+    <array>
+        <string>tel</string>
+        <string>yandexmaps</string>
+        <string>comgooglemaps</string>
+    </array>
 	<key>NSLocationWhenInUseUsageDescription</key>
     <string>Joylashuvingiz xarita va yaqin xizmatlarni ko‘rsatish uchun kerak.</string>
 	<key>CFBundleDisplayName</key>
-	<string>Uputi</string>
+	<string>UPuti</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -46,6 +50,14 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>LSApplicationQueriesSchemes</key>
+    <array>
+      <string>comgooglemaps</string>
+      <string>yandexmaps</string>
+      <string>yandexnavi</string>
+      <string>dgis</string>
+      <string>waze</string>
+    </array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

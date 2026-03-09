@@ -18,8 +18,6 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
         super(const ProfileInitial()) {
     on<ProfileFetch>(_onFetch);
     on<ProfileRefresh>(_onRefresh);
-    on<ProfileRoleChanged>(_onRoleChanged);
-    on<ProfileRoleUpdateRequested>(_onRoleUpdateRequested);
     on<ProfileCarUpdateRequested>(_onCarUpdateRequested);
   }
 
@@ -44,43 +42,12 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
 
   Future<void> _onRefresh(
       ProfileRefresh event, Emitter<ProfileState> emit) async {
-    add(const ProfileFetch());
-  }
-
-  // ── Role local only ──────────────────────────────────────────────────────
-  void _onRoleChanged(
-      ProfileRoleChanged event, Emitter<ProfileState> emit) {
-    final s = state;
-    if (s is! ProfileLoaded) return;
-    emit(ProfileLoaded(data: s.data.copyWith(role: event.role)));
-  }
-
-  // ── Role update via API ──────────────────────────────────────────────────
-  Future<void> _onRoleUpdateRequested(
-      ProfileRoleUpdateRequested event, Emitter<ProfileState> emit) async {
-    final s = state;
-    if (s is! ProfileLoaded) return;
-
-    emit(ProfileLoaded(
-        data: s.data.copyWith(role: event.role), isRoleUpdating: true));
-
+    emit(const ProfileLoading());
     try {
-      await _dio.post(
-        '/api/role/update',
-        data: {'role': event.role},
-        options: _authOptions,
-      );
-      await Prefs.setRole(event.role);
-
-      emit(ProfileLoaded(
-        data: s.data.copyWith(role: event.role),
-        roleUpdated: true,
-      ));
+      final res = await _getProfile();
+      emit(ProfileLoaded(data: ProfileViewData.fromResponse(res)));
     } catch (e) {
-      // Eski holat + xato
-      emit(ProfileLoaded(data: s.data));
-      emit(ProfileFailure(message: "Rolni o'zgartirib bo'lmadi"));
-      emit(ProfileLoaded(data: s.data));
+      emit(ProfileFailure(message: e.toString()));
     }
   }
 

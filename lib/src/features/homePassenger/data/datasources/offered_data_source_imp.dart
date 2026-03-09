@@ -18,7 +18,7 @@ class OfferPriceDataSourceImpl implements OfferPriceDataSource {
     final data = <String, dynamic>{
       "trip_id": tripId,
       "seats": seats,
-      "offered_price": offeredPrice,
+      "offered_price": offeredPrice * seats,
     };
 
     if (comment != null && comment.trim().isNotEmpty) {

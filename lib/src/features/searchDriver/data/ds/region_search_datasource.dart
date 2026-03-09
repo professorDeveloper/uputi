@@ -11,6 +11,7 @@ abstract class DriverRegionSearchRemoteDataSource {
     required String from,
     required String to,
     String? date,
+    int? page,
   });
 }
 
@@ -25,6 +26,7 @@ class DriverRegionSearchRemoteDataSourceImpl
     required String from,
     required String to,
     String? date,
+    int? page,
   }) async {
     final token = Prefs.getAccessToken();
     if (token == null || token.isEmpty) {
@@ -35,6 +37,9 @@ class DriverRegionSearchRemoteDataSourceImpl
       final query = <String, dynamic>{'from': from, 'to': to};
       if (date != null && date.trim().isNotEmpty) {
         query['date'] = date.trim();
+      }
+      if (page != null && page > 1) {
+        query['page'] = page;
       }
 
       final res = await dio.get(

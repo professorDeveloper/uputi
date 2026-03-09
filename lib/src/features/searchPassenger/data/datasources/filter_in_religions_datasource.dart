@@ -8,7 +8,8 @@ abstract class TripsSearchRemoteDataSource {
   Future<SearchRegionTripResponse> searchTrips({
     required String from,
     required String to,
-    String? date, // optional
+    String? date,
+    int? page,
   });
 }
 
@@ -22,6 +23,7 @@ class TripsSearchDataSourceImp implements TripsSearchRemoteDataSource {
     required String from,
     required String to,
     String? date,
+    int? page,
   }) async {
     final token = Prefs.getAccessToken();
     if (token == null || token.isEmpty) {
@@ -33,6 +35,9 @@ class TripsSearchDataSourceImp implements TripsSearchRemoteDataSource {
 
       if (date != null && date.trim().isNotEmpty) {
         query['date'] = date.trim();
+      }
+      if (page != null && page > 1) {
+        query['page'] = page;
       }
 
       final res = await dio.get(

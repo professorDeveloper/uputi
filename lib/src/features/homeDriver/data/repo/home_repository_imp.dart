@@ -70,4 +70,8 @@ class HomeDriverRepositoryImpl implements HomeDriverRepository {
   @override
   Future<String> rejectBooking(int bookingId) =>
       rejectBookingDs.rejectBooking(bookingId);
+
+  @override
+  Future<String> completeMyBookingTrip({required int tripId}) =>
+      completeTripDS.completeTripMyBookings(tripId: tripId);
 }

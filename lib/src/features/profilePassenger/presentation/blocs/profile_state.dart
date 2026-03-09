@@ -20,14 +20,10 @@ final class ProfileFailure extends ProfileState {
 
 final class ProfileLoaded extends ProfileState {
   final ProfileViewData data;
-  final bool isRoleUpdating;
-  final bool roleUpdated;
   final bool isCarUpdating;
 
   const ProfileLoaded({
     required this.data,
-    this.isRoleUpdating = false,
-    this.roleUpdated = false,
     this.isCarUpdating = false,
   });
 }
@@ -42,6 +38,7 @@ class ProfileViewData {
   final int rating;
   final int ratingCount;
   final String role;
+  final int balance;
   final CarViewData? car;
 
   const ProfileViewData({
@@ -51,6 +48,7 @@ class ProfileViewData {
     required this.rating,
     required this.ratingCount,
     required this.role,
+    this.balance = 0,
     this.car,
   });
 
@@ -72,6 +70,7 @@ class ProfileViewData {
     int? rating,
     int? ratingCount,
     String? role,
+    int? balance,
     CarViewData? car,
     bool clearCar = false,
   }) {
@@ -82,6 +81,7 @@ class ProfileViewData {
       rating: rating ?? this.rating,
       ratingCount: ratingCount ?? this.ratingCount,
       role: role ?? this.role,
+      balance: balance ?? this.balance,
       car: clearCar ? null : (car ?? this.car),
     );
   }
@@ -94,6 +94,7 @@ class ProfileViewData {
       rating: r.rating ?? 0,
       ratingCount: r.ratingCount ?? 0,
       role: r.role,
+      balance: r.balance ?? 0,
       car: r.car != null ? CarViewData.fromCar(r.car!) : null,
     );
   }

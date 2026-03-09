@@ -8,6 +8,7 @@ abstract class SearchDriverRepository {
     required String from,
     required String to,
     String? date,
+    int? page,
   });
 
   Future<CityLocationSearchResponse> searchByLocation({

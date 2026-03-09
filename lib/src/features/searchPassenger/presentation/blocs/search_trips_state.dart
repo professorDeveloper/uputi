@@ -14,11 +14,15 @@ final class SearchTripsLoaded extends SearchTripsState {
   final String? actionMessage;
   final String? actionError;
 
+  /// true while loading the next page (load more)
+  final bool paginationLoading;
+
   SearchTripsLoaded({
     required this.response,
     this.actionLoading = false,
     this.actionMessage,
     this.actionError,
+    this.paginationLoading = false,
   });
 
   SearchTripsLoaded copyWith({
@@ -26,12 +30,14 @@ final class SearchTripsLoaded extends SearchTripsState {
     bool? actionLoading,
     String? actionMessage,
     String? actionError,
+    bool? paginationLoading,
   }) {
     return SearchTripsLoaded(
       response: response ?? this.response,
       actionLoading: actionLoading ?? this.actionLoading,
       actionMessage: actionMessage,
       actionError: actionError,
+      paginationLoading: paginationLoading ?? this.paginationLoading,
     );
   }
 }

@@ -21,4 +21,5 @@ abstract class HomeDriverRepository {
   Future<String> cancelBooking(int bookingId);
 
   Future<String> completeTrip({required int tripId});
+  Future<String> completeMyBookingTrip({required int tripId});
 }

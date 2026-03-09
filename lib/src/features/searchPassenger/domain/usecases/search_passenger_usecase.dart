@@ -9,8 +9,9 @@ class SearchPassengerUseCase {
   Future<SearchRegionTripResponse> call({
     required String from,
     required String to,
-    String? date, // optional
+    String? date,
+    int? page,
   }) {
-    return repository.searchTrips(from: from, to: to, date: date);
+    return repository.searchTrips(from: from, to: to, date: date, page: page);
   }
 }

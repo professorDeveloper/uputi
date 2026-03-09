@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:uputi/src/core/constants/app_locales.dart';
 import 'package:uputi/src/core/storage/shared_storage.dart';
 import 'package:uputi/src/di/di.dart';
-import 'package:uputi/src/features/auth/presentation/screens/auth/login_screen.dart';
 import 'src/core/router/app_router.dart';
 
 void main() async {
@@ -35,10 +34,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorObservers: [routeObserver, ChuckerFlutter.navigatorObserver],
-
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: false),
       locale: context.locale,
+
       supportedLocales: context.supportedLocales,
       localizationsDelegates: context.localizationDelegates,
 

@@ -10,7 +10,8 @@ class SearchDriverPassengersUseCase {
     required String from,
     required String to,
     String? date,
+    int? page,
   }) {
-    return repository.searchPassengers(from: from, to: to, date: date);
+    return repository.searchPassengers(from: from, to: to, date: date, page: page);
   }
 }

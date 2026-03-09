@@ -15,6 +15,8 @@ final class SearchTripsRequested extends SearchTripsEvent {
   });
 }
 
+final class SearchTripsLoadMoreRequested extends SearchTripsEvent {}
+
 final class SearchTripsCreateBookingRequested extends SearchTripsEvent {
   final int tripId;
   final int seats;

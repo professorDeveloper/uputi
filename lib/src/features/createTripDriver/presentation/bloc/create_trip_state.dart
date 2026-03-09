@@ -10,6 +10,7 @@ class DriverTripCreateState {
   final String comment; // ixtiyoriy izoh
   final DriverTripCreateStatus status;
   final String? errorMessage;
+  final bool insufficientBalance;
   final Map<String, dynamic>? createdTrip;
 
   const DriverTripCreateState({
@@ -20,6 +21,7 @@ class DriverTripCreateState {
     required this.comment,
     required this.status,
     required this.errorMessage,
+    this.insufficientBalance = false,
     required this.createdTrip,
   });
 
@@ -51,6 +53,7 @@ class DriverTripCreateState {
     String? comment,
     DriverTripCreateStatus? status,
     String? errorMessage,
+    bool? insufficientBalance,
     Map<String, dynamic>? createdTrip,
   }) {
     return DriverTripCreateState(
@@ -61,6 +64,7 @@ class DriverTripCreateState {
       comment: comment ?? this.comment,
       status: status ?? this.status,
       errorMessage: errorMessage,
+      insufficientBalance: insufficientBalance ?? false,
       createdTrip: createdTrip ?? this.createdTrip,
     );
   }

@@ -13,6 +13,7 @@ import '../../../../../main.dart';
 import '../../../../core/constants/app_color.dart';
 import '../../../../core/router/pages.dart';
 import '../../../../core/storage/shared_storage.dart';
+import '../../../homeDriver/presentation/widgets/shimmer_widgets.dart';
 import '../bloc/home_passenger_bloc.dart';
 import '../widgets/home_appbar.dart';
 import '../widgets/list_items.dart';
@@ -21,7 +22,9 @@ import 'package:uputi/src/features/homePassenger/presentation/widgets/offer_pric
 import 'package:uputi/src/features/homePassenger/presentation/widgets/telegram_dialog.dart';
 
 class HomePassengerScreen extends StatefulWidget {
-  const HomePassengerScreen({super.key});
+  final ValueNotifier<bool> isVisible;
+
+  const HomePassengerScreen({super.key, required this.isVisible});
 
   @override
   State<HomePassengerScreen> createState() => _HomePassengerScreenState();
@@ -34,10 +37,10 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
   static const int _radius = 18;
 
   static const Duration _pollInterval = Duration(seconds: 10);
-
   bool _routeSubbed = false;
 
   late final TabController _tabController;
+  final ScrollController _scrollController = ScrollController();
   int _tabIndex = 0;
 
   bool _isTelegramDialogOpen = false;
@@ -47,7 +50,6 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
   static const int _tgBurstMax = 5;
 
   Timer? _pollTimer;
-
   double _lastLat = _defaultLat;
   double _lastLng = _defaultLng;
 
@@ -67,20 +69,43 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
       setState(() => _tabIndex = _tabController.index);
 
       final bloc = context.read<HomePassengerBloc>();
+      final st = bloc.state;
 
       if (_tabIndex == 1) {
-        bloc.add(MyTripsTabOpened());
-        bloc.add(RefreshMyTripsPressed());
+        if (st is HomePassengerLoaded && !st.myTripsLoadedOnce) {
+          bloc.add(MyTripsTabOpened());
+        } else {
+          bloc.add( HomePassengerSilentRefresh(isTab1: true));
+        }
       } else {
-        bloc.add(HomePassengerSilentRefresh());
+        bloc.add( HomePassengerSilentRefresh(isTab1: false));
       }
     });
+
+    _scrollController.addListener(_onScroll);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _load(withLocation: true);
       if (mounted) setState(() => _booted = true);
       _startPolling();
     });
+
+    widget.isVisible.addListener(_onVisibilityChanged);
+  }
+
+  void _onVisibilityChanged() {
+    if (!mounted) return;
+    if (widget.isVisible.value) {
+      _startPolling();
+      final st = context.read<HomePassengerBloc>().state;
+      if (st is HomePassengerLoaded) {
+        context.read<HomePassengerBloc>().add(
+          HomePassengerSilentRefresh(isTab1: _tabIndex == 1),
+        );
+      }
+    } else {
+      _stopPolling();
+    }
   }
 
   @override
@@ -95,8 +120,19 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
     }
   }
 
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 220) {
+      context.read<HomePassengerBloc>().add(LoadMoreActiveTrips());
+    }
+  }
+
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    widget.isVisible.removeListener(_onVisibilityChanged);
     routeObserver.unsubscribe(this);
     _stopPolling();
     _stopTelegramBurstCheck();
@@ -106,10 +142,13 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
   }
 
   @override
-  void didPush() => _startPolling();
-
-  @override
-  void didPopNext() => _startPolling();
+  void didPopNext() {
+    _startPolling();
+    if (!mounted) return;
+    context.read<HomePassengerBloc>().add(
+      HomePassengerSilentRefresh(isTab1: _tabIndex == 1),
+    );
+  }
 
   @override
   void didPushNext() => _stopPolling();
@@ -126,47 +165,25 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
 
     if (state == AppLifecycleState.resumed) {
       if (!isCurrent) return;
-
+      if (!_booted) return;
       _startPolling();
       _load(withLocation: false);
-
-      if (_tabIndex == 1) {
-        context.read<HomePassengerBloc>().add(RefreshMyTripsPressed());
-      }
-
-      if (_isTelegramDialogOpen) {
-        _startTelegramBurstCheck();
-      }
+      if (_isTelegramDialogOpen) _startTelegramBurstCheck();
       return;
-    }
-
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.detached) {
-      _stopPolling();
     }
   }
 
   void _startPolling() {
+    if (!widget.isVisible.value) return;
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(_pollInterval, (_) {
-      if (!mounted) return;
-
-      final route = ModalRoute.of(context);
-      if (route != null && route.isCurrent != true) return;
+      if (!mounted) { _stopPolling(); return; }
+      if (!widget.isVisible.value) { _stopPolling(); return; }
 
       final bloc = context.read<HomePassengerBloc>();
-      final st = bloc.state;
+      if (bloc.state is! HomePassengerLoaded) return;
 
-      if (st is! HomePassengerLoaded) return;
-
-      if (_tabIndex == 1) {
-        if (st.isMyTripsLoading) return;
-        bloc.add(RefreshMyTripsPressed());
-        return;
-      }
-
-      bloc.add(HomePassengerSilentRefresh());
+      bloc.add(HomePassengerSilentRefresh(isTab1: _tabIndex == 1));
     });
   }
 
@@ -192,12 +209,13 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
       _lastLng = pos?.longitude ?? _defaultLng;
     }
 
+    if (!mounted) return;
     final bloc = context.read<HomePassengerBloc>();
     final st = bloc.state;
 
     if (st is HomePassengerLoaded) {
-      bloc.add(HomePassengerSilentRefresh());
-    } else {
+      bloc.add(HomePassengerSilentRefresh(isTab1: _tabIndex == 1));
+    } else if (st is! HomePassengerLoading) {
       bloc.add(HomePassengerInit());
     }
   }
@@ -260,7 +278,7 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
       s.user.id!.toInt(),
       onCheckConnected: () async {
         final bloc = context.read<HomePassengerBloc>();
-        bloc.add(HomePassengerSilentRefresh());
+        bloc.add( HomePassengerSilentRefresh(isTab1: false));
 
         for (int i = 0; i < 10; i++) {
           await Future.delayed(const Duration(milliseconds: 500));
@@ -307,6 +325,25 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
     _tgBurstTimer?.cancel();
     _tgBurstTimer = null;
     _tgBurstAttempt = 0;
+  }
+
+  Future<void> _showLanguageSheet() async {
+    final current = context.locale;
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => _LanguageSheet(
+        current: current,
+        onPick: (locale) async {
+          Navigator.of(ctx).pop();
+          await context.setLocale(locale);
+          if (mounted) setState(() {});
+        },
+      ),
+    );
   }
 
   Widget _topTabBar() {
@@ -387,7 +424,7 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
       );
     }
 
-    if (data.isMyTripsLoading) {
+    if (data.isMyTripsLoading && !data.myTripsLoadedOnce && !data.isTripCancelLoading) {
       return const Padding(
         key: ValueKey('orders_loading'),
         padding: EdgeInsets.only(top: 40),
@@ -400,7 +437,7 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
     }
 
     if (data.myTrips.isEmpty) {
-      return  Padding(
+      return Padding(
         key: ValueKey('orders_empty'),
         padding: EdgeInsets.only(top: 24),
         child: Center(child: Text('home_no_passenger_orders'.tr())),
@@ -410,9 +447,7 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
     return Column(
       key: const ValueKey('orders'),
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ...data.myTrips.map((t) => MyTripCard.trip(t)),
-      ],
+      children: [...data.myTrips.map((t) => MyTripCard.trip(t))],
     );
   }
 
@@ -425,12 +460,16 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
         return prev.user.balance != curr.user.balance;
       },
       builder: (_, appBarState) {
-        final bal = appBarState is HomePassengerLoaded ? (appBarState.user.balance ?? 0) : 0;
+        final bal = appBarState is HomePassengerLoaded
+            ? (appBarState.user.balance ?? 0)
+            : 0;
         final appBarBalance = _fmtBalance(bal);
         return Scaffold(
           appBar: UPuttiHomeAppBar(
             logoAsset: AppImages.logo,
             balance: appBarBalance,
+            locale: context.locale,
+            onLanguageTap: _showLanguageSheet,
           ),
           backgroundColor: const Color(0xFFF5F7FB),
           body: MultiBlocListener(
@@ -441,8 +480,12 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
               ),
               BlocListener<HomePassengerBloc, HomePassengerState>(
                 listenWhen: (prev, curr) {
-                  if (prev is! HomePassengerLoaded || curr is! HomePassengerLoaded) return false;
-                  return !prev.isMyTripsLoading && curr.isMyTripsLoading && _tabIndex != 1;
+                  if (prev is! HomePassengerLoaded ||
+                      curr is! HomePassengerLoaded)
+                    return false;
+                  return !prev.isMyTripsLoading &&
+                      curr.isMyTripsLoading &&
+                      _tabIndex != 1;
                 },
                 listener: (_, __) {
                   _tabController.animateTo(1);
@@ -484,21 +527,29 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
 
                 if (state is HomePassengerLoading ||
                     state is HomePassengerInitial) {
-                  return const SizedBox.shrink();
+                  return const HomeShimmerList();
                 }
 
                 final data = state as HomePassengerLoaded;
 
                 return RefreshIndicator(
                   onRefresh: () async {
+                    _stopPolling();
                     final bloc = context.read<HomePassengerBloc>();
                     final completer = Completer<void>();
 
+                    bool loadingStarted = false;
                     StreamSubscription? sub;
                     sub = bloc.stream.listen((s) {
-                      if (s is HomePassengerLoaded &&
-                          !s.isMyTripsLoading &&
-                          !s.isTripsLoadingMore) {
+                      if (s is! HomePassengerLoaded) return;
+                      if (_tabIndex == 1) {
+                        if (s.isMyTripsLoading) { loadingStarted = true; return; }
+                        if (loadingStarted || !s.isMyTripsLoading) {
+                          sub?.cancel();
+                          if (!completer.isCompleted) completer.complete();
+                        }
+                      } else {
+                        if (s.isTripsLoadingMore) return;
                         sub?.cancel();
                         if (!completer.isCompleted) completer.complete();
                       }
@@ -507,16 +558,18 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
                     if (_tabIndex == 1) {
                       bloc.add(RefreshMyTripsPressed());
                     } else {
-                      bloc.add(HomePassengerSilentRefresh());
+                      bloc.add( HomePassengerSilentRefresh(isTab1: false));
                     }
 
                     await completer.future.timeout(
-                      const Duration(seconds: 8),
+                      const Duration(seconds: 10),
                       onTimeout: () {},
                     );
                     sub.cancel();
+                    _startPolling();
                   },
                   child: ListView(
+                    controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
                     children: [
@@ -540,7 +593,10 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
                             if (!context.mounted || seats == null) return;
 
                             context.read<HomePassengerBloc>().add(
-                              CreateBookingRequested(tripId: t.id, seats: seats),
+                              CreateBookingRequested(
+                                tripId: t.id,
+                                seats: seats,
+                              ),
                             );
                           },
                               (tripId) async {
@@ -562,11 +618,28 @@ class _HomePassengerScreenState extends State<HomePassengerScreen>
                           },
                         ),
                       ),
+
+                      if (data.isTripsLoadingMore)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else if (data.tripsHasMore)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: TextButton(
+                            onPressed: () => context
+                                .read<HomePassengerBloc>()
+                                .add(LoadMoreActiveTrips()),
+                            child: Text('home_show_more'.tr()),
+                          ),
+                        ),
+
+                      const SizedBox(height: 24),
                     ],
                   ),
                 );
               },
-
             ),
           ),
         );
@@ -599,6 +672,58 @@ class _SectionTitle extends StatelessWidget {
         fontSize: 16.5,
         fontWeight: FontWeight.w600,
         color: Color(0xFF111827),
+      ),
+    );
+  }
+}
+
+class _LanguageSheet extends StatelessWidget {
+  const _LanguageSheet({required this.current, required this.onPick});
+  final Locale current;
+  final void Function(Locale) onPick;
+
+  static const _options = [
+    (locale: Locale('uz'), titleKey: 'lang_uz', icon: 'assets/icons/ic_uzbek.png'),
+    (locale: Locale('ru'), titleKey: 'lang_ru', icon: 'assets/icons/ic_russian.png'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 10),
+          Container(width: 44, height: 5, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(100))),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Align(alignment: Alignment.centerLeft, child: Text('profile_language_title'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF111827)))),
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          for (final o in _options) ...[
+            InkWell(
+              onTap: () => onPick(o.locale),
+              child: SizedBox(
+                height: 56,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      ClipRRect(borderRadius: BorderRadius.circular(6), child: Image.asset(o.icon, width: 28, height: 20, fit: BoxFit.cover)),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(o.titleKey.tr(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF111827)))),
+                      if (o.locale.languageCode == current.languageCode) const Icon(Icons.check, size: 20, color: Color(0xFF111827)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          ],
+          const SizedBox(height: 10),
+        ],
       ),
     );
   }

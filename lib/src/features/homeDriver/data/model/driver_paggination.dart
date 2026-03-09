@@ -60,6 +60,10 @@ class PassengerTripModel {
   final int id;
   final String fromAddress;
   final String toAddress;
+  final String? fromLat;
+  final String? fromLng;
+  final String? toLat;
+  final String? toLng;
   final String date;
   final String time;
   final int amount;
@@ -72,6 +76,10 @@ class PassengerTripModel {
     required this.id,
     required this.fromAddress,
     required this.toAddress,
+    this.fromLat,
+    this.fromLng,
+    this.toLat,
+    this.toLng,
     required this.date,
     required this.time,
     required this.amount,
@@ -86,6 +94,10 @@ class PassengerTripModel {
       id: json['id'] ?? 0,
       fromAddress: json['from_address'] ?? '',
       toAddress: json['to_address'] ?? '',
+      fromLat: json['from_lat']?.toString(),
+      fromLng: json['from_lng']?.toString(),
+      toLat: json['to_lat']?.toString(),
+      toLng: json['to_lng']?.toString(),
       date: json['date'] ?? '',
       time: json['time'] ?? '',
       amount: json['amount'] ?? 0,

@@ -14,6 +14,11 @@ class SearchTripsBloc extends Bloc<SearchTripsEvent, SearchTripsState> {
   final CreateBookingUseCase createBooking;
   final OfferPriceUseCase offerPrice;
 
+  // Keep last search params to reuse for load-more
+  String? _lastFrom;
+  String? _lastTo;
+  String? _lastDate;
+
   SearchTripsBloc({
     required this.searchTrips,
     required this.createBooking,
@@ -27,6 +32,7 @@ class SearchTripsBloc extends Bloc<SearchTripsEvent, SearchTripsState> {
     ),
   ) {
     on<SearchTripsRequested>(_onSearch);
+    on<SearchTripsLoadMoreRequested>(_onLoadMore);
     on<SearchTripsCreateBookingRequested>(_onCreateBooking);
     on<SearchTripsOfferPriceRequested>(_onOfferPrice);
   }
@@ -46,6 +52,10 @@ class SearchTripsBloc extends Bloc<SearchTripsEvent, SearchTripsState> {
       SearchTripsRequested event,
       Emitter<SearchTripsState> emit,
       ) async {
+    _lastFrom = event.from;
+    _lastTo = event.to;
+    _lastDate = event.date;
+
     emit(SearchTripsLoading());
     try {
       final res = await searchTrips(
@@ -56,6 +66,43 @@ class SearchTripsBloc extends Bloc<SearchTripsEvent, SearchTripsState> {
       emit(SearchTripsLoaded(response: res));
     } catch (e) {
       emit(SearchTripsError(e.toString()));
+    }
+  }
+
+  Future<void> _onLoadMore(
+      SearchTripsLoadMoreRequested event,
+      Emitter<SearchTripsState> emit,
+      ) async {
+    final cur = state;
+    if (cur is! SearchTripsLoaded) return;
+    if (cur.paginationLoading) return;
+
+    final pagination = cur.response.pagination;
+    if (!pagination.hasNextPage) return;
+    final nextPage = pagination.nextPage;
+    if (nextPage == null) return;
+
+    if (_lastFrom == null || _lastTo == null) return;
+
+    emit(cur.copyWith(paginationLoading: true));
+
+    try {
+      final res = await searchTrips(
+        from: _lastFrom!,
+        to: _lastTo!,
+        date: _lastDate,
+        page: nextPage,
+      );
+
+      // Merge new items with existing
+      final merged = SearchRegionTripResponse(
+        items: [...cur.response.items, ...res.items],
+        pagination: res.pagination,
+      );
+
+      emit(cur.copyWith(response: merged, paginationLoading: false));
+    } catch (e) {
+      emit(cur.copyWith(paginationLoading: false, actionError: e.toString()));
     }
   }
 

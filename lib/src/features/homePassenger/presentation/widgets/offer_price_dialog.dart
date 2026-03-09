@@ -71,6 +71,9 @@ class _OfferPriceSheetState extends State<_OfferPriceSheet> {
     _commentCtrl = TextEditingController();
     _priceFocus = FocusNode();
     _seats = widget.initialSeats;
+
+    // Narx o'zgarganda UI qayta qurilishi uchun listener
+    _priceCtrl.addListener(() => setState(() {}));
   }
 
   @override
@@ -85,6 +88,22 @@ class _OfferPriceSheetState extends State<_OfferPriceSheet> {
     final raw = _priceCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
     if (raw.isEmpty) return 0;
     return int.tryParse(raw) ?? 0;
+  }
+
+  /// 1 o'rindiq uchun narx × tanlangan o'rindiqlar soni
+  int get _totalPrice => _parsePrice() * _seats;
+
+  /// Raqamni 3 xonali guruhlash: 30000 → "30 000"
+  String _formatNumber(int value) {
+    if (value <= 0) return '0';
+    final str = value.toString();
+    final buffer = StringBuffer();
+    final startIndex = str.length % 3;
+    for (int i = 0; i < str.length; i++) {
+      if (i != 0 && (i - startIndex) % 3 == 0) buffer.write(' ');
+      buffer.write(str[i]);
+    }
+    return buffer.toString();
   }
 
   void _setSeats(int v) {
@@ -121,6 +140,10 @@ class _OfferPriceSheetState extends State<_OfferPriceSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final unitPrice = _parsePrice();
+    final total = _totalPrice;
+    final hasPrice = unitPrice > 0;
+
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -147,6 +170,7 @@ class _OfferPriceSheetState extends State<_OfferPriceSheet> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // ── Drag handle ──
                 Container(
                   width: 42,
                   height: 5,
@@ -157,12 +181,13 @@ class _OfferPriceSheetState extends State<_OfferPriceSheet> {
                 ),
                 const SizedBox(height: 10),
 
+                // ── Sarlavha ──
                 Row(
                   children: [
-                     Expanded(
+                    Expanded(
                       child: Text(
                         'offer_price_title'.tr(),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 16,
                           height: 1.1,
                           fontWeight: FontWeight.w600,
@@ -183,11 +208,12 @@ class _OfferPriceSheetState extends State<_OfferPriceSheet> {
 
                 const SizedBox(height: 12),
 
+                // ── Narx label ──
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
                     'offer_price_label'.tr(),
-                    style:  TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: Colors.black.withOpacity(0.72),
@@ -196,6 +222,7 @@ class _OfferPriceSheetState extends State<_OfferPriceSheet> {
                 ),
                 const SizedBox(height: 8),
 
+                // ── Narx input ──
                 TextField(
                   controller: _priceCtrl,
                   focusNode: _priceFocus,
@@ -233,22 +260,23 @@ class _OfferPriceSheetState extends State<_OfferPriceSheet> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                 Align(
+                Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
                     'offer_currency'.tr(),
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontSize: 12, color: Color(0xFF6B7280)),
                   ),
                 ),
 
                 const SizedBox(height: 12),
 
+                // ── O'rindiqlar ──
                 Row(
                   children: [
                     Text(
                       'offer_seats_label'.tr(),
-                      style:  TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: Colors.black.withOpacity(0.72),
@@ -270,13 +298,75 @@ class _OfferPriceSheetState extends State<_OfferPriceSheet> {
                   ],
                 ),
 
+                // ── Jami narx bloki ──
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeInOut,
+                  child: hasPrice
+                      ? Container(
+                    margin: const EdgeInsets.only(top: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColor.blueMain.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColor.blueMain.withOpacity(0.18),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        // Chap: formula
+                        Expanded(
+                          child: RichText(
+                            text: TextSpan(
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF6B7280),
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: _formatNumber(unitPrice),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF374151),
+                                  ),
+                                ),
+                                const TextSpan(text: ' × '),
+                                TextSpan(
+                                  text: '$_seats',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF374151),
+                                  ),
+                                ),
+                                const TextSpan(text: " = "),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // O'ng: jami
+                        Text(
+                          '${_formatNumber(total)} so\'m',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColor.blueMain,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                      : const SizedBox.shrink(),
+                ),
+
                 const SizedBox(height: 10),
 
+                // ── Izoh toggle ──
                 InkWell(
                   onTap: _loading
                       ? null
-                      : () =>
-                      setState(() => _showComment = !_showComment),
+                      : () => setState(() => _showComment = !_showComment),
                   borderRadius: BorderRadius.circular(12),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
@@ -290,9 +380,9 @@ class _OfferPriceSheetState extends State<_OfferPriceSheet> {
                           color: const Color(0xFF6B7280),
                         ),
                         const SizedBox(width: 6),
-                         Text(
+                        Text(
                           'offer_comment_label'.tr(),
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontSize: 13, color: Color(0xFF6B7280)),
                         ),
                       ],
@@ -333,6 +423,7 @@ class _OfferPriceSheetState extends State<_OfferPriceSheet> {
 
                 const SizedBox(height: 14),
 
+                // ── Tugmalar ──
                 Row(
                   children: [
                     Expanded(

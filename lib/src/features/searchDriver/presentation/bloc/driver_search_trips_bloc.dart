@@ -16,13 +16,18 @@ class DriverSearchTripsBloc
   final SearchDriverPassengersUseCase searchPassengers;
   final CreateDriverBookingUseCase createBooking;
 
+  String? _lastFrom;
+  String? _lastTo;
+  String? _lastDate;
+
   DriverSearchTripsBloc({
     required this.searchPassengers,
     required this.createBooking,
   }) : super(
-         DriverSearchTripsLoaded(response: SearchDriverRegionResponse.empty()),
-       ) {
+    DriverSearchTripsLoaded(response: SearchDriverRegionResponse.empty()),
+  ) {
     on<DriverSearchTripsRequested>(_onSearch);
+    on<DriverSearchTripsLoadMoreRequested>(_onLoadMore);
     on<DriverSearchCreateBookingRequested>(_onCreateBooking);
   }
 
@@ -35,9 +40,13 @@ class DriverSearchTripsBloc
   }
 
   Future<void> _onSearch(
-    DriverSearchTripsRequested event,
-    Emitter<DriverSearchTripsState> emit,
-  ) async {
+      DriverSearchTripsRequested event,
+      Emitter<DriverSearchTripsState> emit,
+      ) async {
+    _lastFrom = event.from;
+    _lastTo = event.to;
+    _lastDate = event.date;
+
     emit(DriverSearchTripsLoading());
     try {
       final res = await searchPassengers(
@@ -51,10 +60,45 @@ class DriverSearchTripsBloc
     }
   }
 
+  Future<void> _onLoadMore(
+      DriverSearchTripsLoadMoreRequested event,
+      Emitter<DriverSearchTripsState> emit,
+      ) async {
+    final cur = state;
+    if (cur is! DriverSearchTripsLoaded) return;
+    if (cur.paginationLoading) return;
+
+    final pagination = cur.response.pagination;
+    if (!pagination.hasNextPage) return;
+    final nextPage = pagination.nextPage;
+    if (nextPage == null) return;
+    if (_lastFrom == null || _lastTo == null) return;
+
+    emit(cur.copyWith(paginationLoading: true));
+
+    try {
+      final res = await searchPassengers(
+        from: _lastFrom!,
+        to: _lastTo!,
+        date: _lastDate,
+        page: nextPage,
+      );
+
+      final merged = SearchDriverRegionResponse(
+        items: [...cur.response.items, ...res.items],
+        pagination: res.pagination,
+      );
+
+      emit(cur.copyWith(response: merged, paginationLoading: false));
+    } catch (e) {
+      emit(cur.copyWith(paginationLoading: false, actionError: e.toString()));
+    }
+  }
+
   Future<void> _onCreateBooking(
-    DriverSearchCreateBookingRequested event,
-    Emitter<DriverSearchTripsState> emit,
-  ) async {
+      DriverSearchCreateBookingRequested event,
+      Emitter<DriverSearchTripsState> emit,
+      ) async {
     if (state is DriverSearchTripsLoading) return;
 
     final base = _loadedOrEmpty();

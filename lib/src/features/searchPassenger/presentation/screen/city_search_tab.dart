@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:easy_localization/easy_localization.dart' as locale;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart' as geo;
@@ -25,6 +27,9 @@ class _CitySearchTabState extends State<CitySearchTab> {
   static const double _defaultLat = 41.311081;
   static const double _defaultLng = 69.240562;
 
+  // Map scroll to'xtagandan keyin qancha vaqt kutish (ms)
+  static const int _scrollIdleDelayMs = 800;
+
   mapbox.MapboxMap? _map;
   mapbox.PointAnnotationManager? _mgr;
 
@@ -32,6 +37,12 @@ class _CitySearchTabState extends State<CitySearchTab> {
   double _lastLng = _defaultLng;
 
   bool _booted = false;
+
+  /// Map hozir scroll bo'lyaptimi
+  bool _isMapScrolling = false;
+
+  /// Scroll to'xtaganidan keyin fetch qilish uchun timer
+  Timer? _scrollIdleTimer;
 
   final Map<String, CityTripItem> _annTrip = {};
   Uint8List? _carMarkerBytes;
@@ -47,6 +58,7 @@ class _CitySearchTabState extends State<CitySearchTab> {
 
   @override
   void dispose() {
+    _scrollIdleTimer?.cancel();
     try {
       _mgr?.deleteAll();
     } catch (_) {}
@@ -90,7 +102,7 @@ class _CitySearchTabState extends State<CitySearchTab> {
     _mgr ??= await map.annotations.createPointAnnotationManager();
 
     _carMarkerBytes ??= await _buildCarMarkerBytes(
-      size: 180,
+      size: 120,
       bg: AppColor.blueMain,
     );
 
@@ -102,6 +114,47 @@ class _CitySearchTabState extends State<CitySearchTab> {
     );
 
     await _moveCamera(lat: _lastLat, lng: _lastLng, zoom: 10.8);
+  }
+
+  /// Kamera har harakat qilganda chaqiriladi
+  void _onCameraChanged(mapbox.CameraChangedEventData event) {
+    if (!_isMapScrolling) {
+      if (mounted) setState(() => _isMapScrolling = true);
+    }
+
+    _scrollIdleTimer?.cancel();
+
+    // Scroll to'xtab, idle bo'lgandan keyin fetch qilamiz
+    _scrollIdleTimer = Timer(
+      const Duration(milliseconds: _scrollIdleDelayMs),
+      _onScrollIdle,
+    );
+  }
+
+  /// Map scroll to'xtagandan keyin chaqiriladi
+  Future<void> _onScrollIdle() async {
+    final map = _map;
+    if (map == null || !mounted) return;
+
+    try {
+      final cameraState = await map.getCameraState();
+      final center = cameraState.center;
+
+      final lat = center.coordinates.lat.toDouble();
+      final lng = center.coordinates.lng.toDouble();
+
+      _lastLat = lat;
+      _lastLng = lng;
+
+      if (mounted) {
+        setState(() => _isMapScrolling = false);
+        context.read<CitySearchBloc>().add(
+          CitySearchRequested(lat: lat, lng: lng),
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isMapScrolling = false);
+    }
   }
 
   Future<void> _moveCamera({
@@ -198,7 +251,7 @@ class _CitySearchTabState extends State<CitySearchTab> {
 
                   final tripId = int.tryParse('${t.id}');
                   if (tripId == null) {
-                    showErrorFlushBar("Trip id noto‘g‘ri").show(parentContext);
+                    showErrorFlushBar('trip_invalid_id'.tr()).show(parentContext);
                     return;
                   }
 
@@ -302,6 +355,7 @@ class _CitySearchTabState extends State<CitySearchTab> {
                 key: const ValueKey("city_map"),
                 styleUri: mapbox.MapboxStyles.MAPBOX_STREETS,
                 onMapCreated: _onMapCreated,
+                onCameraChangeListener: _onCameraChanged,
                 cameraOptions: mapbox.CameraOptions(
                   center: mapbox.Point(
                     coordinates: mapbox.Position(_lastLng, _lastLat),
@@ -316,11 +370,13 @@ class _CitySearchTabState extends State<CitySearchTab> {
                 right: 12,
                 top: 12,
                 child: _TopCard(
-                  title: "Shahar ichida",
-                  subtitle: tripsCount == null
-                      ? "Joylashuv bo‘yicha qidiruv"
-                      : "Topildi: $tripsCount",
-                  onRefresh: loading ? null : _load,
+                  title: 'search_tab_city'.tr(),
+                  subtitle: _isMapScrolling
+                      ? 'search_map_moving'.tr()
+                      : tripsCount == null
+                      ? 'search_location_search'.tr()
+                      : 'search_found_count'.tr(namedArgs: {'count': '$tripsCount'}),
+                  onRefresh: (loading || _isMapScrolling) ? null : _load,
                 ),
               ),
               Positioned(
@@ -334,16 +390,16 @@ class _CitySearchTabState extends State<CitySearchTab> {
                     highlightElevation: 1,
                     backgroundColor: Colors.white,
                     shape: const CircleBorder(),
-                    onPressed: loading ? null : _load,
+                    onPressed: (loading || _isMapScrolling) ? null : _load,
                     child: Icon(
-                      Icons.location_on_outlined,
+                      Icons.my_location,
                       color: AppColor.blueMain,
                       size: 25,
                     ),
                   ),
                 ),
               ),
-              if (loading)
+              if (loading && !_isMapScrolling)
                 const Positioned(
                   left: 0,
                   right: 0,
@@ -549,7 +605,7 @@ class _CityTripBottomSheet extends StatelessWidget {
     final amount = trip.amount;
     final price = _money(amount is int ? amount : int.tryParse('$amount') ?? 0);
 
-    final name = (trip.user?.name ?? 'Haydovchi').trim();
+    final name = (trip.user?.name ?? 'sheet_driver_default'.tr()).trim();
     final model = (trip.user?.car?.model ?? '-').trim();
     final color = (trip.user?.car?.color ?? '-').trim();
     final number = (trip.user?.car?.number ?? '-').trim();
@@ -597,12 +653,12 @@ class _CityTripBottomSheet extends StatelessWidget {
               const SizedBox(height: 8),
 
               _SheetInfoRow(
-                label: "Qayerdan",
+                label: 'sheet_from_label'.tr(),
                 value: from,
                 icon: Icons.location_on,
               ),
               const SizedBox(height: 10),
-              _SheetInfoRow(label: "Qayerga", value: to, icon: Icons.flag),
+              _SheetInfoRow(label: 'sheet_to_label'.tr(), value: to, icon: Icons.flag),
 
               const SizedBox(height: 14),
 
@@ -610,7 +666,7 @@ class _CityTripBottomSheet extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _SheetInfoTile(
-                      label: "Sana",
+                      label: 'sheet_date_label'.tr(),
                       value: date,
                       icon: Icons.calendar_today,
                     ),
@@ -618,7 +674,7 @@ class _CityTripBottomSheet extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _SheetInfoTile(
-                      label: "Vaqt",
+                      label: 'sheet_time_label'.tr(),
                       value: time,
                       icon: Icons.access_time,
                     ),
@@ -631,7 +687,7 @@ class _CityTripBottomSheet extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _SheetInfoTile(
-                      label: "O‘rinlar",
+                      label: 'sheet_seats_label'.tr(),
                       value: seats,
                       icon: Icons.people_alt_outlined,
                     ),
@@ -639,7 +695,7 @@ class _CityTripBottomSheet extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _SheetInfoTile(
-                      label: "Narx",
+                      label: 'sheet_price_label'.tr(),
                       value: price,
                       icon: Icons.payments_outlined,
                     ),
@@ -676,7 +732,7 @@ class _CityTripBottomSheet extends StatelessWidget {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            name.isEmpty ? "Haydovchi" : name,
+                            name.isEmpty ? 'sheet_driver_default'.tr() : name,
                             style: const TextStyle(
                               fontSize: 15.5,
                               fontWeight: FontWeight.w600,
@@ -690,17 +746,17 @@ class _CityTripBottomSheet extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: _SheetMiniInfo(label: "Model", value: model),
+                          child: _SheetMiniInfo(label: 'sheet_model_label'.tr(), value: model),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: _SheetMiniInfo(label: "Rang", value: color),
+                          child: _SheetMiniInfo(label: 'sheet_color_label'.tr(), value: color),
                         ),
                       ],
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      "Raqam: $number",
+                      'sheet_number_label'.tr(namedArgs: {'num': number}),
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF111827),
@@ -716,7 +772,7 @@ class _CityTripBottomSheet extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _SheetActionButton(
-                      text: "Zakazni bron qilish",
+                      text: 'trip_book_order'.tr(),
                       bg: const Color(0xFF34A853),
                       onTap: actionLoading ? null : onBook,
                     ),
@@ -724,7 +780,7 @@ class _CityTripBottomSheet extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _SheetActionButton(
-                      text: "Narx taklif qilish",
+                      text: 'trip_offer_price'.tr(),
                       bg: const Color(0xFF2563EB),
                       onTap: actionLoading ? null : onOffer,
                     ),

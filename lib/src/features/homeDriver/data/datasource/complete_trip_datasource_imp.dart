@@ -30,4 +30,27 @@ class CompleteTripDataSourceImpl implements CompleteTripDataSource {
       throw Exception(msg ?? 'Tripni yakunlashda xatolik');
     }
   }
+
+  @override
+  Future<String> completeTripMyBookings({required int tripId}) async{
+    final token = Prefs.getAccessToken();
+
+    try {
+      final res = await dio.put(
+        '/api/trips/$tripId/completed',
+        data: {},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      return res.data['message']?.toString() ?? 'Trip yakunlandi';
+    } on DioException catch (e) {
+      debugPrint('Complete trip URL: ${e.requestOptions.uri}');
+      debugPrint('Complete trip STATUS: ${e.response?.statusCode}');
+      debugPrint('Complete trip BODY: ${e.response?.data}');
+      final msg = e.response?.data is Map
+          ? e.response?.data['message']?.toString()
+          : null;
+      throw Exception(msg ?? 'Tripni yakunlashda xatolik');
+    }
+  }
 }
